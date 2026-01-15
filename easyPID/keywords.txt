@@ -1,0 +1,66 @@
+#######################################
+# Syntax Coloring Map for easyPID
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+PIDController	KEYWORD1
+PIDTuner	KEYWORD1
+AntiWindupMode	KEYWORD1
+DerivativeFilterMode	KEYWORD1
+ControlDirection	KEYWORD1
+TuningRule	KEYWORD1
+TunerState	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin	KEYWORD2
+update	KEYWORD2
+compute	KEYWORD2
+setSetpoint	KEYWORD2
+setMeasurement	KEYWORD2
+setTunings	KEYWORD2
+setOutputLimits	KEYWORD2
+setIntegralLimits	KEYWORD2
+setAntiWindup	KEYWORD2
+setDerivativeFilter	KEYWORD2
+setSampleTime	KEYWORD2
+setDirection	KEYWORD2
+reset	KEYWORD2
+getError	KEYWORD2
+getPterm	KEYWORD2
+getIterm	KEYWORD2
+getDterm	KEYWORD2
+getOutput	KEYWORD2
+start	KEYWORD2
+isComplete	KEYWORD2
+getTunings	KEYWORD2
+getUltimateGain	KEYWORD2
+getUltimatePeriod	KEYWORD2
+cancel	KEYWORD2
+getState	KEYWORD2
+getProgress	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+ANTIWINDUP_NONE	LITERAL1
+ANTIWINDUP_CLAMP	LITERAL1
+ANTIWINDUP_BACKCALC	LITERAL1
+FILTER_NONE	LITERAL1
+FILTER_EMA	LITERAL1
+DIRECT	LITERAL1
+REVERSE	LITERAL1
+TUNING_ZIEGLER_NICHOLS	LITERAL1
+TUNING_TYREUS_LUYBEN	LITERAL1
+TUNING_PESSEN	LITERAL1
+TUNING_NO_OVERSHOOT	LITERAL1
+TUNER_IDLE	LITERAL1
+TUNER_RELAY_STEP	LITERAL1
+TUNER_ANALYZING	LITERAL1
+TUNER_COMPLETE	LITERAL1
