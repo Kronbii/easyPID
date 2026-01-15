@@ -191,5 +191,3 @@ private:
     void calculateResults();
     void applyTuningRule(float& kp, float& ki, float& kd, TuningRule rule);
 };
-
-#endif // PIDTUNER_H

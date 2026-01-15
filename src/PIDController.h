@@ -261,5 +261,3 @@ private:
      */
     void applyAntiWindup(float rawOutput, float clampedOutput, float dt);
 };
-
-#endif // PIDCONTROLLER_H
