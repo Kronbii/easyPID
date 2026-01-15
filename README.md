@@ -1,258 +1,235 @@
 # easyPID
 
-A feature-rich PID controller library for Arduino with multi-instance support, flexible timing, anti-windup, derivative filtering, and optional autotuning.
+A flexible, hardware‑agnostic PID controller library for Arduino with multi‑instance support, anti‑windup protection, derivative filtering, and an optional autotuning add‑on.
+
+---
+
+## Quick TL;DR
+
+```cpp
+#include <PIDController.h>
+
+PIDController pid(2.0, 0.5, 0.1, 0, 255);
+
+void setup() {
+  pid.begin();
+}
+
+void loop() {
+  float output = pid.update(setpoint, measurement);
+  applyOutput(output);
+}
+```
+
+---
+
+## Why easyPID?
+
+`easyPID` is designed for real‑world embedded control applications where multiple independent control loops, timing flexibility, and robust behavior are required.
+
+* Multiple independent PID instances (no global state)
+* Flexible timing: automatic `millis()`‑based updates or user‑supplied `dt`
+* Built‑in anti‑windup protection
+* Optional derivative filtering for noisy signals
+* Full internal state introspection for debugging and tuning
+* Optional relay‑based autotuner (opt‑in)
+* Lightweight and AVR‑friendly
+
+---
 
 ## Features
 
 ### Core Capabilities
-- **Multi-instance friendly** - No global state, create unlimited independent PID controllers
-- **Flexible timing modes** - Automatic timing via `millis()` OR manual time-delta input
-- **Hardware-agnostic** - No dependencies on specific sensors or actuators
-- **AVR-optimized** - Efficient for Arduino Uno and similar boards
-- **Proven math** - Based on working light-tracking robot implementation
 
-### Advanced Features
-- **Anti-windup protection** - Multiple modes (NONE, CLAMP, BACKCALC) to prevent integral saturation
-- **Derivative filtering** - Reduce noise sensitivity with selectable filter types (NONE, EMA)
-- **Full introspection** - Access error, P term, I term, D term for debugging and tuning
-- **Runtime tuning** - Change PID gains on-the-fly without restarting
-- **Output limiting** - Configurable min/max output bounds with separate integral limits
-- **Control direction** - DIRECT or REVERSE action support
+* **Multi‑instance friendly** – Create multiple independent PID controllers
+* **Flexible timing modes** – Automatic timing via `millis()` or manual time‑delta input
+* **Hardware‑agnostic** – No assumptions about sensors, actuators, or pins
+* **AVR‑friendly** – Designed to run efficiently on Arduino Uno‑class boards
+* **Practical implementation** – Derived from a real embedded control project and generalized for reuse
 
-### Optional Add-on: Autotuner
-- **Relay/limit-cycle method** - Automatic PID parameter discovery
-- **Multiple tuning rules** - Ziegler-Nichols, Tyreus-Luyben, Pessen, No-Overshoot
-- **Separate module** - Include `<PIDTuner.h>` only when needed
-- **Safe oscillation detection** - Configurable amplitude and noise band
+### Advanced Control Features
+
+* **Anti‑windup protection** – Prevent integral saturation using selectable modes
+* **Derivative filtering** – Reduce noise sensitivity using optional low‑pass filtering
+* **Runtime tuning** – Adjust PID gains while the system is running
+* **Output limiting** – Clamp controller output to safe bounds
+* **Control direction** – Support for DIRECT and REVERSE acting systems
+* **State introspection** – Access error, P/I/D terms, and last output for debugging
+
+### Optional Add‑On: Autotuner
+
+The autotuner is provided as an optional module and is only included when explicitly requested.
+
+* Relay / limit‑cycle based autotuning method
+* Calculates usable PID parameters from system response
+* Designed for safe operation on embedded systems
+* Included via `#include <PIDTuner.h>`
+
+---
 
 ## Installation
 
-### Arduino IDE
-1. Download the latest release as a ZIP file
-2. Open Arduino IDE
-3. Go to **Sketch → Include Library → Add .ZIP Library**
-4. Select the downloaded ZIP file
-5. Restart Arduino IDE
+### Arduino Library Manager (recommended)
+
+Once published, install via:
+
+> **Arduino IDE → Library Manager → Search for “easyPID”**
 
 ### Arduino CLI
+
 ```bash
 arduino-cli lib install easyPID
 ```
 
 ### Manual Installation
+
 1. Download or clone this repository
-2. Copy the `easyPID` folder to your Arduino `libraries` directory
-   - Windows: `Documents\Arduino\libraries\`
-   - macOS: `~/Documents/Arduino/libraries/`
-   - Linux: `~/Arduino/libraries/`
-3. Restart Arduino IDE
+2. Copy the `easyPID` folder into your Arduino `libraries` directory:
 
-## Quick Start
+   * Windows: `Documents/Arduino/libraries/`
+   * macOS: `~/Documents/Arduino/libraries/`
+   * Linux: `~/Arduino/libraries/`
+3. Restart the Arduino IDE
 
-### Basic Usage
+---
+
+## Basic Usage
 
 ```cpp
 #include <PIDController.h>
 
-// Create PID controller: Kp, Ki, Kd, OutputMin, OutputMax
 PIDController pid(2.0, 0.5, 0.1, 0, 255);
 
 void setup() {
-  pid.begin();  // Initialize timing and state
+  pid.begin();
 }
 
 void loop() {
-  float setpoint = 100.0;
-  float measurement = readSensor();
-  
-  // Update PID (automatic timing)
   float output = pid.update(setpoint, measurement);
-  
   applyOutput(output);
-  delay(100);
 }
 ```
 
-### With Autotuning
+* `setpoint` is the desired target value
+* `measurement` is the current process value
+* `output` is the computed control signal
+
+---
+
+## Using the Autotuner (Optional)
 
 ```cpp
 #include <PIDController.h>
-#include <PIDTuner.h>  // Optional add-on
+#include <PIDTuner.h>
 
 PIDController pid(1.0, 0.0, 0.0, 0, 255);
 PIDTuner tuner(pid);
 
 void setup() {
   pid.begin();
-  tuner.start(setpoint, relayAmplitude);  // Start autotuning
+  tuner.start(setpoint, relayAmplitude);
 }
 
 void loop() {
-  float measurement = readSensor();
-  
   if (!tuner.isComplete()) {
-    // Apply autotuner output during tuning
     float output = tuner.update(measurement);
     applyOutput(output);
   } else {
-    // Get tuned parameters and apply them
     float kp, ki, kd;
-    tuner.getTunings(kp, ki, kd, TUNING_ZIEGLER_NICHOLS);
+    tuner.getTunings(kp, ki, kd);
     pid.setTunings(kp, ki, kd);
-    
-    // Run normal PID control
+
     float output = pid.update(setpoint, measurement);
     applyOutput(output);
   }
 }
 ```
 
-## API Reference
+The autotuner is intended as a starting point for tuning and may require refinement depending on the system dynamics.
 
-### PIDController Class
-
-#### Constructor
-```cpp
-PIDController(float kp, float ki, float kd, float outMin, float outMax)
-```
-
-#### Initialization
-```cpp
-void begin()  // Call in setup() before first update
-```
-
-#### Update Methods
-```cpp
-// Automatic timing (uses millis() internally)
-float update(float setpoint, float measurement)
-
-// Manual timing (provide time delta in milliseconds)
-float update(float setpoint, float measurement, float dtMs)
-
-// Alternative pattern
-void setSetpoint(float setpoint)
-void setMeasurement(float measurement)
-float compute()
-```
-
-#### Configuration
-```cpp
-void setTunings(float kp, float ki, float kd)
-void setOutputLimits(float min, float max)
-void setIntegralLimits(float min, float max)
-void setAntiWindup(AntiWindupMode mode)
-void setDerivativeFilter(DerivativeFilterMode mode, float alpha = 0.8)
-void setSampleTime(unsigned long ms)
-void setDirection(ControlDirection dir)
-```
-
-#### State Management
-```cpp
-void reset()  // Clear integral, derivative, and error history
-```
-
-#### Introspection
-```cpp
-float getError()   // Current error (setpoint - measurement)
-float getPterm()   // Proportional term contribution
-float getIterm()   // Integral term contribution
-float getDterm()   // Derivative term contribution
-float getOutput()  // Last computed output
-```
-
-### PIDTuner Class (Optional)
-
-#### Constructor
-```cpp
-PIDTuner(PIDController& pid)
-```
-
-#### Tuning Control
-```cpp
-bool start(float setpoint, float relayAmplitude, float noiseBand = 0.5)
-float update(float measurement)
-bool isComplete()
-void cancel()
-```
-
-#### Results
-```cpp
-bool getTunings(float& kp, float& ki, float& kd, TuningRule rule)
-float getUltimateGain()
-float getUltimatePeriod()
-float getProgress()  // 0.0 to 1.0
-```
-
-#### Tuning Rules
-- `TUNING_ZIEGLER_NICHOLS` - Classic, aggressive response
-- `TUNING_TYREUS_LUYBEN` - Less overshoot, better for lag-dominant processes
-- `TUNING_PESSEN` - Fast response, moderate overshoot
-- `TUNING_NO_OVERSHOOT` - Conservative, minimal overshoot
+---
 
 ## Examples
 
-The library includes three complete examples:
+The library includes the following examples:
 
-1. **BasicPID** - Single PID controller with simulated first-order process
-2. **MultiLoopPID** - Two independent controllers running concurrently
-3. **AutoTunePID** - Automatic tuning demonstration with multiple tuning rules
+1. **BasicPID** – Single PID controller with a simulated first‑order process
+2. **MultiLoopPID** – Two independent PID loops running concurrently
+3. **AutoTunePID** – Demonstration of the optional autotuning workflow
 
-Load examples from Arduino IDE: **File → Examples → easyPID**
+Access them via:
 
-## How easyPID is Different
+> **Arduino IDE → File → Examples → easyPID**
 
-| Feature | easyPID | Typical PID Libraries |
-|---------|---------|----------------------|
-| Multi-instance | ✅ Unlimited | ❌ Often uses global state |
-| Timing flexibility | ✅ Auto + Manual | ⚠️ Usually auto only |
-| Anti-windup | ✅ 3 modes | ⚠️ Basic or none |
-| Derivative filtering | ✅ Built-in | ❌ Rare |
-| Introspection | ✅ Full state access | ⚠️ Limited |
-| Autotuner | ✅ Optional add-on | ❌ Separate library |
-| Proven algorithm | ✅ Field-tested | ⚠️ Varies |
+---
+
+## How easyPID Is Different
+
+| Feature              | easyPID           | Typical Arduino PID Libraries |
+| -------------------- | ----------------- | ----------------------------- |
+| Multiple instances   | ✅ Yes             | ⚠️ Often limited              |
+| Timing flexibility   | ✅ Auto + manual   | ⚠️ Usually fixed              |
+| Anti‑windup          | ✅ Built‑in        | ❌ Often missing               |
+| Derivative filtering | ✅ Optional        | ❌ Rare                        |
+| State introspection  | ✅ Full access     | ⚠️ Limited                    |
+| Autotuning           | ✅ Optional add‑on | ❌ Separate library            |
+
+---
 
 ## Tuning Guide
 
-See [docs/tuning_guide.md](docs/tuning_guide.md) for comprehensive tuning advice, including:
-- What Kp, Ki, Kd do and how to tune them
-- When to use anti-windup and derivative filtering
-- Step-by-step tuning procedures
-- Common pitfalls and solutions
+A practical tuning guide is available at:
+
+* `docs/tuning_guide.md`
+
+It covers:
+
+* Understanding Kp, Ki, and Kd
+* When to use anti‑windup and filtering
+* Step‑by‑step tuning strategies
+* Common pitfalls in embedded PID control
+
+---
 
 ## Applications
 
-- Temperature control (heating/cooling systems)
-- Motor speed control
-- Position control (servos, steppers)
-- Dual-axis systems (pan-tilt, X-Y stages)
-- Multi-zone control (multiple heaters, motors, etc.)
-- Robotics (line following, balancing, tracking)
-- Process control (flow, pressure, level)
+`easyPID` can be used for a wide range of control problems, including:
+
+* Temperature regulation
+* Motor speed control
+* Position control
+* Pan‑tilt and X‑Y systems
+* Multi‑zone control setups
+* Robotics and automation projects
+
+---
 
 ## Requirements
 
-- Arduino IDE 1.6.x or higher
-- Arduino boards: Uno, Nano, Mega, Due, Zero, ESP8266, ESP32, and compatible
-- Tested on AVR architecture, compatible with most Arduino platforms
+* Arduino IDE 1.6 or newer
+* Tested on AVR‑based boards (Arduino Uno, Nano)
+* Expected to work on most Arduino‑compatible platforms
+
+---
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details
+MIT License – see [LICENSE](LICENSE) for details.
+
+---
 
 ## Author
 
-Rami Kronbi - ramykronby@gmail.com
+Rami Kronbi
 
-## Contributing
-
-Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.
+---
 
 ## Version History
 
-See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.
+See [CHANGELOG.md](CHANGELOG.md) for release notes and version history.
 
-## Acknowledgments
+---
 
-- Based on proven PID implementation from light-tracking robot project
-- Autotuner inspired by Åström-Hägglund relay method
-- Tuning rules from classical control theory literature
+## Contributing
+
+Contributions, bug reports, and suggestions are welcome via GitHub issues and pull requests.
