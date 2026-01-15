@@ -5,7 +5,7 @@
  * @date 2024
  */
 
-#include "PIDController.h"
+#include "easyPID.h"
 
 PIDController::PIDController(float kp, float ki, float kd, float outMin, float outMax)
     : kp_(kp), ki_(ki), kd_(kd), outMin_(outMin), outMax_(outMax) {

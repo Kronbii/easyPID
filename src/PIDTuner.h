@@ -25,7 +25,7 @@
 #pragma once
 
 #include <Arduino.h>
-#include "PIDController.h"
+#include "easyPID.h"
 
 /**
  * @enum TuningRule

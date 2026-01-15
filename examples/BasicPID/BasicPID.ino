@@ -19,7 +19,7 @@
  * No external hardware required - all simulation in software
  */
 
-#include <PIDController.h>
+#include <easyPID.h>
 
 // Setpoint and process parameters
 const float SETPOINT = 100.0;           // Target value

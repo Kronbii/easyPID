@@ -312,7 +312,7 @@ pid.setDerivativeFilter(FILTER_EMA, 0.85);
 ### Using the Autotuner
 
 ```cpp
-#include <PIDController.h>
+#include <easyPID.h>
 #include <PIDTuner.h>
 
 PIDController pid(1.0, 0.0, 0.0, 0, 255);

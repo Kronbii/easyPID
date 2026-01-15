@@ -7,7 +7,7 @@ A flexible, hardware‑agnostic PID controller library for Arduino with multi‑
 ## Quick TL;DR
 
 ```cpp
-#include <PIDController.h>
+#include <easyPID.h>
 
 PIDController pid(2.0, 0.5, 0.1, 0, 255);
 
@@ -93,7 +93,7 @@ The autotuner implements a **relay / limit-cycle method (Åström–Hägglund)**
 ## Autotuner Usage Example
 
 ```cpp
-#include <PIDController.h>
+#include <easyPID.h>
 #include <PIDTuner.h>
 
 PIDController pid(1.0, 0.0, 0.0, 0, 255);
@@ -160,7 +160,7 @@ arduino-cli lib install easyPID
 ## Basic Usage
 
 ```cpp
-#include <PIDController.h>
+#include <easyPID.h>
 
 PIDController pid(2.0, 0.5, 0.1, 0, 255);
 
@@ -183,7 +183,7 @@ void loop() {
 ## Using the Autotuner (Optional)
 
 ```cpp
-#include <PIDController.h>
+#include <easyPID.h>
 #include <PIDTuner.h>
 
 PIDController pid(1.0, 0.0, 0.0, 0, 255);

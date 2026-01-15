@@ -1,5 +1,5 @@
 /**
- * @file PIDController.h
+ * @file easyPID.h
  * @brief General-purpose PID Controller for Arduino
  * @author Rami Kronbi
  * @date 2024

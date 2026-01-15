@@ -23,7 +23,7 @@
  * No external hardware required - all simulation in software
  */
 
-#include <PIDController.h>
+#include <easyPID.h>
 #include <PIDTuner.h>  // Optional add-on module
 
 // Process parameters for simulation

@@ -20,7 +20,7 @@
  * No external hardware required - all simulation in software
  */
 
-#include <PIDController.h>
+#include <easyPID.h>
 
 // Process 1: Fast response system (e.g., small motor, low inertia)
 const float SETPOINT_1 = 80.0;
