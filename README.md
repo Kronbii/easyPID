@@ -56,14 +56,78 @@ void loop() {
 * **Control direction** – Support for DIRECT and REVERSE acting systems
 * **State introspection** – Access error, P/I/D terms, and last output for debugging
 
-### Optional Add‑On: Autotuner
+## Optional Add-On: Autotuner
 
-The autotuner is provided as an optional module and is only included when explicitly requested.
+The autotuner is provided as an optional module and is only included when explicitly requested:
 
-* Relay / limit‑cycle based autotuning method
-* Calculates usable PID parameters from system response
-* Designed for safe operation on embedded systems
-* Included via `#include <PIDTuner.h>`
+```cpp
+#include <PIDTuner.h>
+```
+
+---
+
+## Autotuning Method
+
+The autotuner implements a **relay / limit-cycle method (Åström–Hägglund)**:
+
+* Applies bang-bang (relay) control around the setpoint
+* Induces sustained oscillations in the system
+* Measures oscillation amplitude and period
+* Computes:
+
+  * Ultimate gain (**Ku**)
+  * Ultimate period (**Pu**)
+* Applies classical tuning rules to compute PID gains
+
+---
+
+## Supported Tuning Rules
+
+* **Ziegler–Nichols** – Classic, aggressive response
+* **Tyreus–Luyben** – Reduced overshoot, better for lag-dominant systems
+* **Pessen Integral Rule** – Faster response with moderate overshoot
+* **No Overshoot** – Conservative tuning for sensitive systems
+
+---
+
+## Autotuner Usage Example
+
+```cpp
+#include <PIDController.h>
+#include <PIDTuner.h>
+
+PIDController pid(1.0, 0.0, 0.0, 0, 255);
+PIDTuner tuner(pid);
+
+void setup() {
+  pid.begin();
+  tuner.start(setpoint, relayAmplitude);  // noiseBand is optional
+}
+
+void loop() {
+  if (!tuner.isComplete()) {
+    // Apply relay output during tuning
+    float output = tuner.update(measurement);
+    applyOutput(output);
+  } else {
+    float kp, ki, kd;
+    tuner.getTunings(kp, ki, kd, TUNING_ZIEGLER_NICHOLS);
+    pid.setTunings(kp, ki, kd);
+
+    // Run normal PID control
+    float output = pid.update(setpoint, measurement);
+    applyOutput(output);
+  }
+}
+```
+
+---
+
+## ⚠️ Warning
+
+The autotuner intentionally induces oscillations around the setpoint.
+
+Ensure your system can safely tolerate these oscillations before enabling autotuning.
 
 ---
 
