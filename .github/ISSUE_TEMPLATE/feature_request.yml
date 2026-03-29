@@ -1,0 +1,49 @@
+name: Feature request
+description: Suggest an enhancement for easyPID.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement.
+        Please explain the use case so we can evaluate impact and scope.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What limitation or pain point are you trying to solve?
+      placeholder: I need ...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the API/behavior you want.
+      placeholder: Add support for ...
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      placeholder: Workarounds or other approaches you evaluated.
+    validations:
+      required: false
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Real-world use case
+      description: Explain how this will be used in a project.
+      placeholder: In my control loop, I need ...
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      placeholder: Links, references, example code, or related issues.
+    validations:
+      required: false
