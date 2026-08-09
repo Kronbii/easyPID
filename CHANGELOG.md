@@ -5,6 +5,18 @@ All notable changes to the easyPID library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-08-09
+
+### Fixed
+- The ultimate-gain estimate now accounts for the noise band acting as relay
+  hysteresis: `Ku = 4d / (pi * sqrt(a^2 - h^2))`. The previous ideal-relay form
+  `4d / (pi * a)` ignored the hysteresis and biased `Ku` low, increasingly so as
+  `noiseBand` grew relative to the oscillation.
+- Tuning results are now rejected when the measured swing is not larger than
+  the noise band, instead of reporting a confident value derived from noise.
+
+---
+
 ## [1.0.3] - 2026-08-09
 
 ### Fixed

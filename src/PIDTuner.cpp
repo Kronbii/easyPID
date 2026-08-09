@@ -7,6 +7,8 @@
 
 #include "PIDTuner.h"
 
+#include <math.h>
+
 // Arduino.h already defines PI (as a double). Redefining it here produced a
 // "PI redefined" warning on every build, so use a private float constant.
 static const float EASYPID_PI = 3.14159265359f;
@@ -164,13 +166,26 @@ void PIDTuner::calculateResults() {
     // Convert period to seconds
     ultimatePeriod_ = avgPeriod / 1000.0f;
     
-    // Calculate ultimate gain using relay method formula
-    // Ku = 4*d / (π*a)
-    // where d = relay amplitude, a = oscillation amplitude
-    if (avgAmplitude > 0.0f) {
-        ultimateGain_ = (4.0f * relayAmplitude_) / (EASYPID_PI * avgAmplitude);
+    // Describing-function estimate of the ultimate gain.
+    //
+    // The noise band acts as relay hysteresis of half-width h, which moves the
+    // critical point -1/N(a) off the negative real axis. Projecting it back on
+    // to the real axis (the assumption Ziegler-Nichols rules are built on):
+    //
+    //   Ku = 4*d / (pi * sqrt(a^2 - h^2))
+    //
+    // where d = relay amplitude and a = half peak-to-peak oscillation
+    // amplitude. With h = 0 this reduces to the ideal-relay form 4*d/(pi*a).
+    float h = noiseBand_;
+    float effective = (avgAmplitude * avgAmplitude) - (h * h);
+
+    if (avgAmplitude > 0.0f && effective > 0.0f) {
+        ultimateGain_ = (4.0f * relayAmplitude_) / (EASYPID_PI * sqrtf(effective));
         resultsValid_ = true;
     } else {
+        // The observed swing is no larger than the noise band, so what was
+        // measured is noise rather than a limit cycle. Report no result
+        // instead of a confidently wrong one.
         resultsValid_ = false;
     }
 }
