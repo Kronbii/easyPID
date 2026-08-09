@@ -5,6 +5,34 @@ All notable changes to the easyPID library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.20] - 2026-08-09
+
+### Fixed
+- **The tuning guide's autotune snippet called `pid.reset()` on every loop
+  iteration.** Anyone copying it got a controller whose integral was wiped every
+  sample, degrading it to proportional-only with a permanent steady-state offset
+  and a full-magnitude phantom derivative each cycle — a library defect, as far
+  as the user could tell. It also re-applied identical gains forever. Now a
+  one-shot latch. `README.md` and the AutoTunePID sketch never had this bug.
+- **The Ziegler-Nichols open-loop formulas were wrong.** For the FOPDT model the
+  reaction-curve rule is `Kp = 1.2*T/(K*L)`, `Ti = 2L`, `Td = 0.5L`. The guide
+  gave `Kp = 1.2/(K*L)`, dropping `T` entirely, and `Ki = 2*Kp/T`, which is
+  wrong twice over. For `K=2, L=5 s, T=100 s` it produced `Kp = 0.12` where the
+  correct value is `12.0`, and `Ki = 0.0024` against `1.2` — off by 100x and
+  500x. Only `Kd` was right. The library's own closed-loop rules were always
+  correct; this was an isolated documentation error.
+
+### Documentation
+- The anti-windup section labelled `NONE` as the default when the constructor
+  actually sets `CLAMP`, and the checklist implied anti-windup was off until
+  enabled. Both corrected.
+- Documented that `setIntegralLimits()` bounds the accumulator, with a worked
+  example of the `Ki * limit` scaling.
+- Noted the `REVERSE` sign convention where the error equation is introduced,
+  and the 0.999 upper bound on the filter alpha.
+
+---
+
 ## [1.0.19] - 2026-08-09
 
 ### Fixed
