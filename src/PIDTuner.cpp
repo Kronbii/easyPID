@@ -32,16 +32,13 @@ PIDTuner::PIDTuner(PIDController& pid)
     outputHigh_ = 0.0f;
     outputLow_ = 0.0f;
 
-    peakHigh_ = 0.0f;
-    peakLow_ = 0.0f;
-    peakHighTime_ = 0;
-    peakLowTime_ = 0;
-    lookingForPeak_ = false;
-    peakType_ = 0;
+    cycleMax_ = 0.0f;
+    cycleMin_ = 0.0f;
+    haveCycleStart_ = false;
+    cycleStartTime_ = 0;
 
     cyclesDetected_ = 0;
     cyclesNeeded_ = 0;
-    lastPeakTime_ = 0;
     periodSum_ = 0.0f;
     amplitudeSum_ = 0.0f;
 }
@@ -63,16 +60,13 @@ bool PIDTuner::start(float setpoint, float relayAmplitude, float noiseBand) {
     // Reset detection variables
     relayHigh_ = false;
     relayHighPrev_ = false;
-    peakHigh_ = setpoint_;
-    peakLow_ = setpoint_;
-    peakHighTime_ = 0;
-    peakLowTime_ = 0;
-    lookingForPeak_ = true;
-    peakType_ = 0;
-    
+    cycleMax_ = setpoint_;
+    cycleMin_ = setpoint_;
+    haveCycleStart_ = false;
+    cycleStartTime_ = millis();
+
     cyclesDetected_ = 0;
     cyclesNeeded_ = MIN_CYCLES_FOR_TUNING + 2; // Extra cycles for stability
-    lastPeakTime_ = millis();
     periodSum_ = 0.0f;
     amplitudeSum_ = 0.0f;
     
@@ -91,23 +85,23 @@ float PIDTuner::update(float measurement) {
     
     unsigned long now = millis();
     
-    // Timeout check
-    if (now - lastPeakTime_ > MAX_WAIT_TIME_MS) {
+    // Timeout check: no complete relay cycle for too long
+    if (now - cycleStartTime_ > MAX_WAIT_TIME_MS) {
         state_ = TUNER_IDLE;
         return 0.0f;
     }
-    
-    // Relay feedback control (bang-bang)
+
+    // Relay feedback control (bang-bang, with the noise band as hysteresis)
     if (measurement > setpoint_ + noiseBand_) {
         relayHigh_ = false; // Switch to low output
     } else if (measurement < setpoint_ - noiseBand_) {
         relayHigh_ = true;  // Switch to high output
     }
-    
+
     float output = relayHigh_ ? outputHigh_ : outputLow_;
-    
-    // Detect peaks in oscillation
-    detectPeak(measurement, now);
+
+    // Measure the limit cycle induced by the relay
+    trackLimitCycle(measurement, now);
     
     // Check if enough cycles collected
     if (cyclesDetected_ >= cyclesNeeded_) {
@@ -118,50 +112,43 @@ float PIDTuner::update(float measurement) {
     return output;
 }
 
-void PIDTuner::detectPeak(float measurement, unsigned long now) {
-    // Simple peak detection based on relay state transitions
-    
-    if (lookingForPeak_) {
-        if (relayHigh_ && peakType_ != 1) {
-            // Looking for high peak
-            if (measurement > peakHigh_) {
-                peakHigh_ = measurement;
-                peakHighTime_ = now;
-            }
-        } else if (!relayHigh_ && peakType_ != -1) {
-            // Looking for low peak
-            if (measurement < peakLow_) {
-                peakLow_ = measurement;
-                peakLowTime_ = now;
-            }
-        }
+void PIDTuner::trackLimitCycle(float measurement, unsigned long now) {
+    // Accumulate the extremes of the cycle currently in progress. The process
+    // peak always lags the relay switch (that lag is exactly what makes the
+    // loop oscillate), so the extremes must be tracked on every update rather
+    // than sampled at the switching instant.
+    if (measurement > cycleMax_) {
+        cycleMax_ = measurement;
     }
-    
-    // Detect when relay switches (indicates we passed a peak)
-    if (relayHigh_ != relayHighPrev_) {
-        relayHighPrev_ = relayHigh_;
-        
-        if (relayHigh_) {
-            // Just switched to high, we crossed below setpoint (found low peak)
-            if (cyclesDetected_ > 0) { // Skip first transition
-                float amplitude = peakHigh_ - peakLow_;
-                amplitudeSum_ += amplitude;
-                
-                unsigned long period = now - lastPeakTime_;
-                periodSum_ += (float)period;
-                
-                cyclesDetected_++;
-            }
-            lastPeakTime_ = now;
-            peakLow_ = measurement;
-            peakType_ = -1;
-            
-        } else {
-            // Just switched to low, we crossed above setpoint (found high peak)
-            peakHigh_ = measurement;
-            peakType_ = 1;
-        }
+    if (measurement < cycleMin_) {
+        cycleMin_ = measurement;
     }
+
+    // A rising edge (output low -> high) delimits one full period of the
+    // limit cycle: low peak, high peak, back to the next low crossing.
+    bool risingEdge = (relayHigh_ && !relayHighPrev_);
+    relayHighPrev_ = relayHigh_;
+
+    if (!risingEdge) {
+        return;
+    }
+
+    if (haveCycleStart_) {
+        // 'a' in the describing-function formula is the half peak-to-peak
+        // swing of the oscillation, not the full peak-to-peak span.
+        amplitudeSum_ += (cycleMax_ - cycleMin_) * 0.5f;
+        periodSum_ += (float)(now - cycleStartTime_);
+        cyclesDetected_++;
+    } else {
+        // The very first edge only establishes the reference point; no
+        // complete cycle has elapsed yet.
+        haveCycleStart_ = true;
+    }
+
+    // Begin a fresh measurement window.
+    cycleStartTime_ = now;
+    cycleMax_ = measurement;
+    cycleMin_ = measurement;
 }
 
 void PIDTuner::calculateResults() {

@@ -5,6 +5,32 @@ All notable changes to the easyPID library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-08-09
+
+### Fixed
+- **The autotuner could never complete.** `cyclesDetected_` was incremented
+  inside `if (cyclesDetected_ > 0)`, but `start()` initialises it to `0`, so the
+  counter was pinned at zero forever. `isComplete()` never returned `true`,
+  `getProgress()` never rose above `0.0`, and because the timeout reference was
+  refreshed on every relay switch the tuner never timed out either — it simply
+  relayed indefinitely. Confirmed by simulation: 400 s of relay operation with
+  `Ku = Pu = 0`.
+- **Oscillation amplitude was measured incorrectly.** `peakHigh_` was reset to
+  the measurement at each switching instant and then never tracked upward, so
+  `peakHigh_ - peakLow_` recorded roughly `2 x noiseBand` instead of the real
+  limit-cycle swing. Extremes are now accumulated continuously across each
+  cycle, which is required because the process peak lags the relay switch.
+- Amplitude is now the half peak-to-peak swing, matching the `a` term in the
+  describing-function relation `Ku = 4d / (pi * a)`. The previous code passed
+  the full peak-to-peak span, understating `Ku` by a factor of two.
+
+### Removed
+- Private members `peakHigh_`, `peakLow_`, `peakHighTime_`, `peakLowTime_`,
+  `lookingForPeak_`, `peakType_` and `lastPeakTime_`, superseded by the
+  cycle-window measurement. No public API change.
+
+---
+
 ## [1.0.2] - 2026-08-09
 
 ### Fixed

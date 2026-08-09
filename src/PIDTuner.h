@@ -167,18 +167,17 @@ private:
     float outputHigh_;
     float outputLow_;
     
-    // Oscillation detection
-    float peakHigh_;
-    float peakLow_;
-    unsigned long peakHighTime_;
-    unsigned long peakLowTime_;
-    bool lookingForPeak_;
-    int peakType_; // 1 = high, -1 = low
-    
+    // Limit-cycle measurement: running extremes of the cycle in progress.
+    // The process peak lags the relay switch, so the extremes have to be
+    // accumulated continuously rather than sampled at the switching instant.
+    float cycleMax_;
+    float cycleMin_;
+    bool haveCycleStart_;           ///< True once the first rising edge has been seen
+    unsigned long cycleStartTime_;  ///< millis() at the last rising edge
+
     // Cycle detection
     int cyclesDetected_;
     int cyclesNeeded_;
-    unsigned long lastPeakTime_;
     float periodSum_;
     float amplitudeSum_;
     
@@ -188,7 +187,7 @@ private:
     bool resultsValid_;
     
     // Helpers
-    void detectPeak(float measurement, unsigned long now);
+    void trackLimitCycle(float measurement, unsigned long now);
     void calculateResults();
     void applyTuningRule(float& kp, float& ki, float& kd, TuningRule rule);
 };
