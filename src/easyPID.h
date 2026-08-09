@@ -176,6 +176,8 @@ public:
     /**
      * @brief Get current error value
      * @return Current error (setpoint - measurement)
+     * @note Always setpoint - measurement, including in REVERSE mode. The sign
+     *       inversion REVERSE applies is internal to the control terms.
      */
     float getError() const;
 
@@ -219,7 +221,8 @@ private:
     bool integralLimitsSet_;
 
     // State variables (based on proven tracker.h implementation)
-    float error_;
+    float error_;         ///< Reported error, always setpoint - measurement
+    float controlError_;  ///< Error actually driving the terms (negated when REVERSE)
     float previousError_;
     bool firstUpdate_;   ///< No previous error yet, so no derivative can be formed
     float integral_;

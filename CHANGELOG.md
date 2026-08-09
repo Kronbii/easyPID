@@ -5,6 +5,23 @@ All notable changes to the easyPID library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.10] - 2026-08-09
+
+### Fixed
+- `getError()` is now always `setpoint - measurement`, as its documentation
+  always claimed. `REVERSE` mode negated the error in place, so introspection
+  reported the internal sign-corrected control error instead: a REVERSE
+  controller at setpoint 100 with measurement 40 reported `-60` rather than
+  `+60`. The reported error and the error driving the terms are now separate
+  values.
+
+### Note for REVERSE users
+`DIRECT` controllers (the default) are unaffected. If you have a `REVERSE`
+controller and were compensating for the old sign when logging or plotting
+`getError()`, remove that compensation. Control behaviour itself is unchanged.
+
+---
+
 ## [1.0.9] - 2026-08-09
 
 ### Fixed

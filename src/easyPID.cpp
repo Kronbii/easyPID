@@ -16,6 +16,7 @@ PIDController::PIDController(float kp, float ki, float kd, float outMin, float o
     
     // Initialize state variables
     error_ = 0.0f;
+    controlError_ = 0.0f;
     previousError_ = 0.0f;
     firstUpdate_ = true;
     integral_ = 0.0f;
@@ -104,21 +105,20 @@ float PIDController::compute() {
 }
 
 float PIDController::computePID(float setpoint, float measurement, float dt) {
-    // Calculate error (based on proven tracker.h lines 54-56, 104-105)
+    // Calculate error (based on proven tracker.h lines 54-56, 104-105).
+    // error_ is what getError() reports and is always setpoint - measurement,
+    // independent of control direction. controlError_ is the sign-corrected
+    // value that actually drives the terms.
     error_ = setpoint - measurement;
-    
-    // Apply control direction
-    if (direction_ == REVERSE) {
-        error_ = -error_;
-    }
-    
+    controlError_ = (direction_ == REVERSE) ? -error_ : error_;
+
     // Calculate proportional term (based on tracker.h line 78)
-    pTerm_ = kp_ * error_;
-    
+    pTerm_ = kp_ * controlError_;
+
     // Calculate and accumulate integral term with dt scaling (based on tracker.h line 75)
     // Original: integral_error_ += current_error_;
     // Enhanced: integral += error * dt (for time-aware integration)
-    integral_ += error_ * dt;
+    integral_ += controlError_ * dt;
     
     // Clamp integral to limits if set
     if (integralLimitsSet_) {
@@ -145,7 +145,7 @@ float PIDController::computePID(float setpoint, float measurement, float dt) {
         derivativeFiltered_ = 0.0f;
         firstUpdate_ = false;
     } else {
-        derivative_ = (error_ - previousError_) / dt;
+        derivative_ = (controlError_ - previousError_) / dt;
     }
 
     // Apply derivative filtering if enabled
@@ -174,7 +174,7 @@ float PIDController::computePID(float setpoint, float measurement, float dt) {
     applyAntiWindup(rawOutput, clampedOutput, dt);
     
     // Store for next iteration (based on tracker.h line 83)
-    previousError_ = error_;
+    previousError_ = controlError_;
     
     output_ = clampedOutput;
     return output_;
@@ -191,7 +191,7 @@ void PIDController::applyAntiWindup(float rawOutput, float clampedOutput, float 
         // Clamp integral when output is saturated
         if (saturated) {
             // Reverse the last integral accumulation
-            integral_ -= error_ * dt;
+            integral_ -= controlError_ * dt;
         }
     } else if (antiWindupMode_ == ANTIWINDUP_BACKCALC) {
         // Back-calculation feeds the saturation excess back through the
@@ -255,6 +255,7 @@ void PIDController::setDirection(ControlDirection direction) {
 void PIDController::reset() {
     // Reset all state variables (similar to tracker.h resetIntegral, lines 62-64)
     error_ = 0.0f;
+    controlError_ = 0.0f;
     previousError_ = 0.0f;
     firstUpdate_ = true;
     integral_ = 0.0f;
