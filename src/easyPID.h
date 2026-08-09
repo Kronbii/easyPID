@@ -132,13 +132,19 @@ public:
      * @brief Set output saturation limits
      * @param min Minimum output value
      * @param max Maximum output value
+     * @note Ignored if min >= max, which would otherwise mark every output as
+     *       saturated and permanently inhibit integration
      */
     void setOutputLimits(float min, float max);
 
     /**
      * @brief Set integral limits to prevent excessive windup
-     * @param min Minimum integral term value
-     * @param max Maximum integral term value
+     * @param min Minimum accumulator value
+     * @param max Maximum accumulator value
+     * @note These bound the raw error-time accumulator, NOT the Ki-scaled I
+     *       term. The resulting contribution to the output is Ki * limit.
+     * @note Ignored if min >= max. Until this is called, no integral limit is
+     *       applied; the output limits alone do not imply one.
      */
     void setIntegralLimits(float min, float max);
 
@@ -151,7 +157,9 @@ public:
     /**
      * @brief Configure derivative filtering
      * @param mode Filter mode (NONE, EMA)
-     * @param alpha Filter coefficient (0.0-1.0), higher = more filtering
+     * @param alpha Filter coefficient, higher = more filtering. Clamped to
+     *        [0.0, 0.999]: at exactly 1.0 the filtered derivative would be
+     *        frozen and the D term permanently dead.
      */
     void setDerivativeFilter(DerivativeFilterMode mode, float alpha = 0.8f);
 

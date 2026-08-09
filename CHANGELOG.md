@@ -5,6 +5,31 @@ All notable changes to the easyPID library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.14] - 2026-08-09
+
+### Fixed
+- `setOutputLimits()` and `setIntegralLimits()` now ignore `min >= max`.
+  Inverted limits made every output compare as saturated, which permanently
+  inhibited integration and left the controller unable to reach setpoint.
+- The derivative-filter `alpha` is clamped strictly below 1.0. At exactly 1.0
+  the EMA reduces to `filtered = 1*filtered + 0*raw`, freezing the filtered
+  derivative at its initial value and killing the D term for the rest of the
+  run. The old clamp permitted that value.
+
+### Removed
+- The dead integral-limit seeding in `setOutputLimits()`. It assigned
+  `integralMin_`/`integralMax_` while `integralLimitsSet_` was false, but those
+  members are only read when it is true, so the assignment never had any effect.
+  The comment claiming integral limits "default to output limits" was
+  misleading: until `setIntegralLimits()` is called there is no integral limit.
+
+### Documentation
+- `setIntegralLimits()` bounds the raw error-time accumulator, not the
+  Ki-scaled I term. The contribution to the output is `Ki * limit`. This was
+  never stated and the parameter names implied otherwise.
+
+---
+
 ## [1.0.13] - 2026-08-09
 
 ### Fixed

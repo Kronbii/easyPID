@@ -37,7 +37,9 @@ PIDController::PIDController(float kp, float ki, float kd, float outMin, float o
     sampleTime_ = 100; // Default 100ms
     lastTime_ = 0;
     
-    // Integral limits default to output limits
+    // No integral limits until setIntegralLimits() is called. These seeds are
+    // never read while integralLimitsSet_ is false; they exist only so the
+    // members are not indeterminate.
     integralMin_ = outMin;
     integralMax_ = outMax;
     integralLimitsSet_ = false;
@@ -249,17 +251,22 @@ void PIDController::setTunings(float kp, float ki, float kd) {
 }
 
 void PIDController::setOutputLimits(float min, float max) {
+    // Inverted or degenerate limits would make every output "saturated" and
+    // permanently inhibit integration. Ignore them rather than bricking the
+    // controller silently.
+    if (min >= max) {
+        return;
+    }
+
     outMin_ = min;
     outMax_ = max;
-    
-    // Update integral limits if not explicitly set
-    if (!integralLimitsSet_) {
-        integralMin_ = min;
-        integralMax_ = max;
-    }
 }
 
 void PIDController::setIntegralLimits(float min, float max) {
+    if (min >= max) {
+        return;
+    }
+
     integralMin_ = min;
     integralMax_ = max;
     integralLimitsSet_ = true;
@@ -272,10 +279,12 @@ void PIDController::setAntiWindup(AntiWindupMode mode) {
 void PIDController::setDerivativeFilter(DerivativeFilterMode mode, float alpha) {
     filterMode_ = mode;
     filterAlpha_ = alpha;
-    
-    // Clamp alpha to valid range
+
+    // Clamp alpha to a usable range. The upper bound is strict: at exactly 1.0
+    // the EMA becomes filtered = 1*filtered + 0*raw, so the filtered derivative
+    // is frozen at its initial value and the D term is permanently dead.
     if (filterAlpha_ < 0.0f) filterAlpha_ = 0.0f;
-    if (filterAlpha_ > 1.0f) filterAlpha_ = 1.0f;
+    if (filterAlpha_ > 0.999f) filterAlpha_ = 0.999f;
 }
 
 void PIDController::setSampleTime(unsigned long ms) {
