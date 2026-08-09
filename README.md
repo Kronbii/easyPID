@@ -307,3 +307,13 @@ See [CHANGELOG.md](CHANGELOG.md) for release notes and version history.
 ## Contributing
 
 Contributions, bug reports, and suggestions are welcome via GitHub issues and pull requests.
+
+Before opening a pull request, please read [AGENTS.md](AGENTS.md). It documents
+the Arduino library constraints, the versioning policy, and the verification
+commands, and run the checks:
+
+```bash
+make -C extras/test test                                # host tests
+arduino-lint --compliance strict --library-manager update
+arduino-cli compile -b arduino:avr:uno --library . --warnings all examples/BasicPID
+```

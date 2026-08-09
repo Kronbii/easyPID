@@ -586,4 +586,5 @@ Example: v1.2.3
 - 2 = Minor version  
 - 3 = Patch version
 
+[1.1.0]: https://github.com/Kronbii/easyPID/releases/tag/1.1.0
 [1.0.0]: https://github.com/Kronbii/easyPID/releases/tag/1.0.0
