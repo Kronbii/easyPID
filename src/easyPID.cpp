@@ -34,7 +34,6 @@ PIDController::PIDController(float kp, float ki, float kd, float outMin, float o
     direction_ = DIRECT;
     
     sampleTime_ = 100; // Default 100ms
-    autoTiming_ = true;
     lastTime_ = 0;
     
     // Integral limits default to output limits
@@ -73,17 +72,22 @@ float PIDController::update(float setpoint, float measurement) {
 
 float PIDController::update(float setpoint, float measurement, float dtMs) {
     if (!initialized_) {
-        initialized_ = true;
-        reset();
+        begin();
     }
-    
+
     float dt = dtMs / 1000.0f; // Convert to seconds
-    
+
     // Ensure minimum dt to avoid division by zero
     if (dt <= 0.0f) {
         dt = (float)sampleTime_ / 1000.0f;
     }
-    
+
+    // Keep the automatic-timing reference in step with manual updates. Without
+    // this, a sketch that drives the controller with an explicit dt and then
+    // calls the automatic overload would have the whole elapsed wall-clock
+    // since the last automatic call counted as one sample period.
+    lastTime_ = millis();
+
     return computePID(setpoint, measurement, dt);
 }
 
@@ -260,6 +264,12 @@ void PIDController::reset() {
     iTerm_ = 0.0f;
     dTerm_ = 0.0f;
     output_ = 0.0f;
+
+    // Restart the automatic-timing reference too. reset() is typically called
+    // after a pause or a large setpoint change; without this the next
+    // automatic update would treat the entire idle period as one sample and
+    // integrate it in a single step.
+    lastTime_ = millis();
 }
 
 float PIDController::getError() const {

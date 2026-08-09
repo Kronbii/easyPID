@@ -5,6 +5,25 @@ All notable changes to the easyPID library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.9] - 2026-08-09
+
+### Fixed
+- `update(setpoint, measurement, dtMs)` did not refresh the internal timing
+  reference, so a sketch that used the manual-`dt` overload and later called the
+  automatic overload had all the intervening wall-clock counted as a single
+  sample period. Measured: ten manual 100 ms updates spread over 10 s of real
+  time, then one automatic update, integrated 10.1 s in one step instead of
+  0.1 s.
+- `reset()` now also restarts the timing reference. It is typically called after
+  a pause or a large setpoint change, and without this the next automatic update
+  integrated the entire idle period in one step.
+
+### Removed
+- Private member `autoTiming_`, which was assigned in the constructor and never
+  read. No public API change.
+
+---
+
 ## [1.0.8] - 2026-08-09
 
 ### Fixed

@@ -92,6 +92,8 @@ public:
      * @param measurement Current process variable
      * @param dtMs Time delta in milliseconds since last update
      * @return Calculated control output (clamped to limits)
+     * @note Safe to interleave with the automatic-timing overload: this call
+     *       also refreshes the internal timing reference
      */
     float update(float setpoint, float measurement, float dtMs);
 
@@ -165,6 +167,9 @@ public:
     /**
      * @brief Reset controller state (clear integral, derivative, errors)
      * @note Use when changing setpoint dramatically or after pause
+     * @note Also restarts the automatic-timing reference, so the next
+     *       update(setpoint, measurement) measures dt from now rather than
+     *       from before the pause
      */
     void reset();
 
@@ -230,7 +235,6 @@ private:
     // Timing
     unsigned long lastTime_;
     unsigned long sampleTime_;
-    bool autoTiming_;
 
     // Configuration
     AntiWindupMode antiWindupMode_;
