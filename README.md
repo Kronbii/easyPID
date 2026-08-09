@@ -28,7 +28,7 @@ void loop() {
 `easyPID` is designed for real‑world embedded control applications where multiple independent control loops, timing flexibility, and robust behavior are required.
 
 * Multiple independent PID instances (no global state)
-* Flexible timing: automatic `millis()`‑based updates or user‑supplied `dt`
+* Flexible timing: automatic `millis()`‑based updates, or a caller‑supplied delta time in **milliseconds**
 * Built‑in anti‑windup protection
 * Optional derivative filtering for noisy signals
 * Full internal state introspection for debugging and tuning
@@ -58,11 +58,14 @@ void loop() {
 
 ## Optional Add-On: Autotuner
 
-The autotuner is provided as an optional module and is only included when explicitly requested:
+The autotuner API is opt‑in — include it explicitly to use it:
 
 ```cpp
 #include <PIDTuner.h>
 ```
+
+Arduino compiles every `.cpp` under `src/` into the sketch, so `PIDTuner.cpp`
+is built either way; the linker discards it when nothing references it.
 
 ---
 
@@ -178,6 +181,13 @@ void loop() {
 * `measurement` is the current process value
 * `output` is the computed control signal
 
+`update()` measures elapsed time itself. To supply your own timestep instead,
+use the three‑argument overload — the delta is in **milliseconds**, not seconds:
+
+```cpp
+output = pid.update(setpoint, measurement, (float)(now - lastTime));
+```
+
 ---
 
 ## Using the Autotuner (Optional)
@@ -271,7 +281,7 @@ It covers:
 ## Requirements
 
 * Arduino IDE 1.6 or newer
-* Tested on AVR‑based boards (Arduino Uno, Nano)
+* Developed and compiled against AVR‑based boards (Arduino Uno, Nano) and ESP32
 * Expected to work on most Arduino‑compatible platforms
 
 ---

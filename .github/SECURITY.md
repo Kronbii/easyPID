@@ -12,8 +12,17 @@ release line.
 
 ## Reporting a Vulnerability
 
-Please report suspected vulnerabilities privately by emailing:
-`ramykronby@gmail.com`
+Please do **not** report security vulnerabilities through public GitHub issues.
+
+Preferred reporting path:
+
+1. Use GitHub's private vulnerability reporting
+   (Security tab → Advisories → Report a vulnerability).
+
+Fallback path:
+
+1. Email `ramykronby@gmail.com`, or contact the maintainer via
+   https://github.com/kronbii
 
 When reporting, include:
 
@@ -22,8 +31,6 @@ When reporting, include:
 - Reproduction steps or proof-of-concept
 - Impact assessment (what an attacker could do)
 - Any suggested remediation
-
-Please do not open public GitHub issues for security vulnerabilities.
 
 ## Response Process
 

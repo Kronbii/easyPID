@@ -5,6 +5,45 @@ All notable changes to the easyPID library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.21] - 2026-08-09
+
+### Fixed
+- `library.properties` gained a `license=MIT` field, so the Library Manager
+  listing no longer shows no license despite `LICENSE` being present.
+- `includes` listed only `easyPID.h`, so **Sketch → Include Library** never
+  offered `PIDTuner.h` even though the docs tell users to include it. Now
+  `easyPID.h,PIDTuner.h`.
+- The file had no terminating newline, so appending a field with `>>` would
+  have concatenated it onto the `includes` line.
+- The `paragraph` restated everything already in `sentence`, which the spec
+  prepends when rendering, so the listing said "anti-windup, derivative
+  filtering, autotuning" twice in one blurb.
+
+### Changed
+- Dropped the unsupported "field-tested" / "Tested on..." claims from
+  `library.properties`, `README.md` and `CHANGELOG.md`. The repository had no
+  tests and no compile verification, so nothing justified them. Reworded to
+  "developed and compiled against", and "Tested Platforms" is now "Target
+  Platforms".
+- `README.md` no longer claims the autotuner "is only included when explicitly
+  requested". Arduino compiles every `.cpp` under `src/` into every sketch; the
+  claim is true of the API and false of the build. Reworded to say the linker
+  discards it when unused.
+- Documented that the three-argument `update()` takes **milliseconds**. "dt"
+  normally means seconds in control work, and passing `0.1` for 100 ms would
+  integrate 1000x too slowly. Added a README snippet showing the correct call.
+
+### Removed
+- The root `SECURITY.md`. Two security policies were tracked and they
+  contradicted each other on supported versions, reporting channel and
+  acknowledgment SLA. GitHub surfaces `.github/SECURITY.md`, so that one is
+  kept, with the root file's better content (private vulnerability reporting as
+  the primary channel, "no public issues") merged into it.
+- The tracked, empty, read-only `.codex` file, which had no consumer and shipped
+  to every user in the Library Manager archive. Added to `.gitignore`.
+
+---
+
 ## [1.0.20] - 2026-08-09
 
 ### Fixed
@@ -398,7 +437,7 @@ controller and were compensating for the old sign when logging or plotting
   - Proportional, Integral, and Derivative control terms
   - dt-aware integral accumulation and derivative calculation
   - Support for automatic timing (millis-based) and manual dt input
-  - Dual update patterns: `update(setpoint, measurement)` and `update(setpoint, measurement, dt)`
+  - Dual update patterns: `update(setpoint, measurement)` and `update(setpoint, measurement, dtMs)` (milliseconds)
   - Alternative pattern: `setSetpoint()`, `setMeasurement()`, `compute()`
   
 - **Anti-windup protection** with multiple modes
@@ -444,7 +483,7 @@ controller and were compensating for the old sign when logging or plotting
   - AutoTunePID: Complete autotuning workflow with multiple tuning rules
   
 - **Complete documentation**
-  - README.md with quick start, API reference, and feature comparison
+  - README.md with quick start, usage examples, and feature comparison
   - docs/tuning_guide.md with practical tuning procedures and troubleshooting
   - Inline code documentation with Doxygen-style comments
   
@@ -457,16 +496,15 @@ controller and were compensating for the old sign when logging or plotting
 ### Technical Details
 - **Multi-instance safe**: No global mutable state, create unlimited controllers
 - **Memory efficient**: Uses float (not double) for AVR compatibility
-- **Proven algorithm**: Based on field-tested light-tracking robot implementation
 - **Hardware agnostic**: No dependencies on specific sensors or actuators
-- **AVR optimized**: Tested on Arduino Uno (ATmega328P)
+- **AVR optimized**: Developed and compiled against Arduino Uno (ATmega328P)
 - **Portable**: Compatible with most Arduino architectures (AVR, ARM, ESP8266, ESP32)
 
 ### Dependencies
 - Arduino Core library (included with Arduino IDE)
 - No external dependencies required
 
-### Tested Platforms
+### Target Platforms
 - Arduino Uno (ATmega328P)
 - Arduino Nano
 - Arduino Mega 2560
@@ -505,3 +543,5 @@ Example: v1.2.3
 - 1 = Major version
 - 2 = Minor version  
 - 3 = Patch version
+
+[1.0.0]: https://github.com/Kronbii/easyPID/releases/tag/1.0.0
