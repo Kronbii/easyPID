@@ -172,6 +172,12 @@ float PIDController::computePID(float setpoint, float measurement, float dt) {
     
     // Apply anti-windup
     applyAntiWindup(rawOutput, clampedOutput, dt);
+
+    // Anti-windup may have changed the integrator, so refresh the reported
+    // I term. Without this getIterm() showed the pre-correction value and
+    // kept climbing during saturation, making it look as though anti-windup
+    // was not working.
+    iTerm_ = ki_ * integral_;
     
     // Store for next iteration (based on tracker.h line 83)
     previousError_ = controlError_;

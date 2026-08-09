@@ -189,7 +189,7 @@ public:
 
     /**
      * @brief Get integral term contribution
-     * @return I term value
+     * @return I term value, after any anti-windup correction for this cycle
      */
     float getIterm() const;
 

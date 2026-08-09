@@ -5,6 +5,17 @@ All notable changes to the easyPID library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.11] - 2026-08-09
+
+### Fixed
+- `getIterm()` reported the integral term as it was *before* anti-windup ran,
+  so during saturation it kept climbing even though the integrator was being
+  held. That made it look as though anti-windup was not working, which is
+  precisely the situation the getter exists to diagnose. It now reflects the
+  post-correction integrator state.
+
+---
+
 ## [1.0.10] - 2026-08-09
 
 ### Fixed
