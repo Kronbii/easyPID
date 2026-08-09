@@ -118,6 +118,10 @@ float PIDController::computePID(float setpoint, float measurement, float dt) {
     // Calculate and accumulate integral term with dt scaling (based on tracker.h line 75)
     // Original: integral_error_ += current_error_;
     // Enhanced: integral += error * dt (for time-aware integration)
+    //
+    // Remember the pre-accumulation value so conditional integration can undo
+    // exactly what was added, including any truncation by the integral limits.
+    float integralBefore = integral_;
     integral_ += controlError_ * dt;
     
     // Clamp integral to limits if set
@@ -171,7 +175,7 @@ float PIDController::computePID(float setpoint, float measurement, float dt) {
     }
     
     // Apply anti-windup
-    applyAntiWindup(rawOutput, clampedOutput, dt);
+    applyAntiWindup(rawOutput, clampedOutput, dt, integralBefore);
 
     // Anti-windup may have changed the integrator, so refresh the reported
     // I term. Without this getIterm() showed the pre-correction value and
@@ -186,18 +190,29 @@ float PIDController::computePID(float setpoint, float measurement, float dt) {
     return output_;
 }
 
-void PIDController::applyAntiWindup(float rawOutput, float clampedOutput, float dt) {
+void PIDController::applyAntiWindup(float rawOutput, float clampedOutput, float dt, float integralBefore) {
     if (antiWindupMode_ == ANTIWINDUP_NONE) {
         return; // No anti-windup
     }
-    
+
     bool saturated = (rawOutput != clampedOutput);
-    
+
     if (antiWindupMode_ == ANTIWINDUP_CLAMP) {
-        // Clamp integral when output is saturated
-        if (saturated) {
-            // Reverse the last integral accumulation
-            integral_ -= controlError_ * dt;
+        // Conditional integration: inhibit only the accumulation that drives
+        // FURTHER into saturation. Reverting unconditionally also cancels
+        // accumulation that would relieve saturation, which freezes the
+        // integrator: once the I term alone exceeds the limit, the output can
+        // stay pinned at the rail forever even under a large opposing error.
+        //
+        // Restoring the saved value rather than subtracting error*dt also
+        // makes the rollback an exact inverse when the integral limits
+        // truncated this cycle's accumulation.
+        bool pushingIntoSaturation =
+            (rawOutput > outMax_ && controlError_ > 0.0f) ||
+            (rawOutput < outMin_ && controlError_ < 0.0f);
+
+        if (pushingIntoSaturation) {
+            integral_ = integralBefore;
         }
     } else if (antiWindupMode_ == ANTIWINDUP_BACKCALC) {
         // Back-calculation feeds the saturation excess back through the

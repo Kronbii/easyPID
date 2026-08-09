@@ -5,6 +5,30 @@ All notable changes to the easyPID library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.12] - 2026-08-09
+
+### Fixed
+- **`ANTIWINDUP_CLAMP` could pin the output at a limit indefinitely.** The
+  rollback fired on saturation alone, with no test of the error direction, so it
+  cancelled accumulation that would have *relieved* saturation just as readily as
+  accumulation that worsened it. Once the I term alone exceeded the output
+  limit, the integrator froze and the controller stayed on the rail regardless
+  of the error. Reproduced: integral wound to `I = 300` against a ceiling of 50,
+  then a sustained error of `-100` for 300 samples left the output at exactly
+  `50.000` the whole time with the integral unmoved. Now only accumulation that
+  drives further into saturation is inhibited; the same scenario unwinds to
+  `I = 100` and the output leaves the rail.
+- The rollback restores the pre-accumulation value instead of subtracting
+  `error * dt`, making it an exact inverse when `setIntegralLimits()` truncated
+  the accumulation. Previously it removed more than had been added.
+
+### Note
+This changes the numeric response of saturating controllers using the default
+anti-windup mode. A loop tuned around the frozen-integral behaviour will react
+differently — better, but differently.
+
+---
+
 ## [1.0.11] - 2026-08-09
 
 ### Fixed

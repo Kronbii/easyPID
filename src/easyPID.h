@@ -266,6 +266,7 @@ private:
      * @param rawOutput Output before clamping
      * @param clampedOutput Output after clamping
      * @param dt Time delta in seconds
+     * @param integralBefore Integrator value before this cycle's accumulation
      */
-    void applyAntiWindup(float rawOutput, float clampedOutput, float dt);
+    void applyAntiWindup(float rawOutput, float clampedOutput, float dt, float integralBefore);
 };
