@@ -1,7 +1,10 @@
 name: Build
 
 on:
+  # Pushes to a topic branch are covered by its pull request, so listing only
+  # main here avoids every PR running the whole matrix twice.
   push:
+    branches: [main]
   pull_request:
 
 jobs:
@@ -11,19 +14,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # The full platforms block lives in the matrix. Passing an empty
+        # source-url for the bundled AVR core makes the action parse it as null
+        # and crash in sort_dependency_list, so the key must be absent entirely
+        # rather than present and empty.
         board:
           - name: Uno
             fqbn: arduino:avr:uno
-            platform: arduino:avr
-            url: ""
+            platforms: |
+              - name: arduino:avr
           - name: Mega 2560
             fqbn: arduino:avr:mega
-            platform: arduino:avr
-            url: ""
+            platforms: |
+              - name: arduino:avr
           - name: ESP32
             fqbn: esp32:esp32:esp32
-            platform: esp32:esp32
-            url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+            platforms: |
+              - name: esp32:esp32
+                source-url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
 
     steps:
       - name: Checkout repository
@@ -33,9 +41,7 @@ jobs:
         uses: arduino/compile-sketches@v1
         with:
           fqbn: ${{ matrix.board.fqbn }}
-          platforms: |
-            - name: ${{ matrix.board.platform }}
-              source-url: ${{ matrix.board.url }}
+          platforms: ${{ matrix.board.platforms }}
           libraries: |
             - source-path: ./
           sketch-paths: |
