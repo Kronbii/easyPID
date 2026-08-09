@@ -83,6 +83,10 @@ public:
      * @param setpoint Desired target value
      * @param measurement Current process variable
      * @return Calculated control output (clamped to limits)
+     * @note If no whole millisecond has elapsed since the last update this
+     *       returns the previous output without recomputing, so it is safe to
+     *       call from a fast loop(). Introspection getters likewise keep their
+     *       previous values on such a call.
      */
     float update(float setpoint, float measurement);
 
@@ -152,9 +156,13 @@ public:
     void setDerivativeFilter(DerivativeFilterMode mode, float alpha = 0.8f);
 
     /**
-     * @brief Set expected sample time for derivative calculation
-     * @param ms Sample time in milliseconds
-     * @note Optional - mainly for documentation/validation
+     * @brief Record the expected sample period
+     * @param ms Sample time in milliseconds; values of 0 are ignored
+     * @note Advisory only. It does not gate the update rate and is not used in
+     *       the control math: dt comes from the elapsed time measured by
+     *       update(setpoint, measurement), or from the dtMs you pass to
+     *       update(setpoint, measurement, dtMs). Call update() at your own
+     *       cadence.
      */
     void setSampleTime(unsigned long ms);
 

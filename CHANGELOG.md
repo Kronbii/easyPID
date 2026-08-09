@@ -5,6 +5,33 @@ All notable changes to the easyPID library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.13] - 2026-08-09
+
+### Fixed
+- **`update()` fabricated a timestep when no time had passed.** `dt` was
+  computed from `millis()`, and when it came out as zero the controller
+  substituted a whole `sampleTime_` (100 ms by default) and integrated as if
+  that period had elapsed. The documented usage calls `update()` unconditionally
+  from `loop()`, which on any reasonably fast board runs many times per
+  millisecond, so the integral accrued at up to 100x the true rate. Measured:
+  ten calls with the clock frozen integrated a full second. Such calls now
+  return the previous output unchanged, and `lastTime_` is not advanced, so
+  sub-millisecond time carries into the next call instead of being discarded.
+- The manual-`dt` overload likewise returns the previous output for a
+  non-positive `dtMs` rather than inventing a timestep. Previously
+  `setSampleTime(0)` made the divide-by-zero guard restore `dt = 0` and the
+  derivative became inf, then NaN.
+- `setSampleTime()` now ignores zero.
+
+### Changed
+- `setSampleTime()` is documented as advisory. It never gated the update rate,
+  and now that no timestep is ever fabricated it plays no part in the control
+  math at all. The previous note calling it "mainly for documentation" was
+  wrong in the opposite direction: it *was* driving the math, on exactly the
+  path that was broken.
+
+---
+
 ## [1.0.12] - 2026-08-09
 
 ### Fixed

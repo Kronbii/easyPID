@@ -60,14 +60,26 @@ float PIDController::update(float setpoint, float measurement) {
     }
     
     unsigned long now = millis();
-    float dt = (float)(now - lastTime_) / 1000.0f; // Convert to seconds
-    lastTime_ = now;
-    
-    // Ensure minimum dt to avoid division by zero
-    if (dt <= 0.0f) {
-        dt = (float)sampleTime_ / 1000.0f;
+    unsigned long elapsed = now - lastTime_; // unsigned: safe across millis() rollover
+
+    // No time has passed since the last update, so there is no new information
+    // and nothing to integrate. Return the previous output unchanged.
+    //
+    // Substituting a nominal sampleTime_ here (as this used to do) credited a
+    // full sample period of integration to a call that took no time at all.
+    // The documented usage calls update() unconditionally from loop(), which on
+    // any reasonably fast board runs many times per millisecond, so the
+    // integral accrued at up to 100x the true rate.
+    //
+    // lastTime_ is deliberately NOT advanced here, so sub-millisecond time is
+    // carried into the next call rather than being discarded.
+    if (elapsed == 0UL) {
+        return output_;
     }
-    
+
+    lastTime_ = now;
+    float dt = (float)elapsed / 1000.0f; // Convert to seconds
+
     return computePID(setpoint, measurement, dt);
 }
 
@@ -76,12 +88,13 @@ float PIDController::update(float setpoint, float measurement, float dtMs) {
         begin();
     }
 
-    float dt = dtMs / 1000.0f; // Convert to seconds
-
-    // Ensure minimum dt to avoid division by zero
-    if (dt <= 0.0f) {
-        dt = (float)sampleTime_ / 1000.0f;
+    // A non-positive dt carries no information and would divide by zero in the
+    // derivative. Return the previous output rather than inventing a timestep.
+    if (dtMs <= 0.0f) {
+        return output_;
     }
+
+    float dt = dtMs / 1000.0f; // Convert to seconds
 
     // Keep the automatic-timing reference in step with manual updates. Without
     // this, a sketch that drives the controller with an explicit dt and then
@@ -266,7 +279,12 @@ void PIDController::setDerivativeFilter(DerivativeFilterMode mode, float alpha) 
 }
 
 void PIDController::setSampleTime(unsigned long ms) {
-    sampleTime_ = ms;
+    // Advisory only: the controller derives dt from the actual elapsed time or
+    // from the caller-supplied value, never from this. Zero is rejected so the
+    // stored value cannot claim an impossible rate.
+    if (ms > 0UL) {
+        sampleTime_ = ms;
+    }
 }
 
 void PIDController::setDirection(ControlDirection direction) {
