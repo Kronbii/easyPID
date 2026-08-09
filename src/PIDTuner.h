@@ -163,6 +163,7 @@ private:
     
     // Relay state
     bool relayHigh_;
+    bool relayHighPrev_;   ///< Relay state at the previous update, for edge detection
     float outputHigh_;
     float outputLow_;
     

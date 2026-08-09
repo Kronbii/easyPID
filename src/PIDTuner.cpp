@@ -20,6 +20,30 @@ PIDTuner::PIDTuner(PIDController& pid)
     resultsValid_ = false;
     ultimateGain_ = 0.0f;
     ultimatePeriod_ = 0.0f;
+
+    // Every member gets a defined value at construction so that calling
+    // update() before start() cannot read uninitialised memory.
+    setpoint_ = 0.0f;
+    relayAmplitude_ = 0.0f;
+    noiseBand_ = 0.0f;
+
+    relayHigh_ = false;
+    relayHighPrev_ = false;
+    outputHigh_ = 0.0f;
+    outputLow_ = 0.0f;
+
+    peakHigh_ = 0.0f;
+    peakLow_ = 0.0f;
+    peakHighTime_ = 0;
+    peakLowTime_ = 0;
+    lookingForPeak_ = false;
+    peakType_ = 0;
+
+    cyclesDetected_ = 0;
+    cyclesNeeded_ = 0;
+    lastPeakTime_ = 0;
+    periodSum_ = 0.0f;
+    amplitudeSum_ = 0.0f;
 }
 
 bool PIDTuner::start(float setpoint, float relayAmplitude, float noiseBand) {
@@ -38,6 +62,7 @@ bool PIDTuner::start(float setpoint, float relayAmplitude, float noiseBand) {
     
     // Reset detection variables
     relayHigh_ = false;
+    relayHighPrev_ = false;
     peakHigh_ = setpoint_;
     peakLow_ = setpoint_;
     peakHighTime_ = 0;
@@ -113,9 +138,8 @@ void PIDTuner::detectPeak(float measurement, unsigned long now) {
     }
     
     // Detect when relay switches (indicates we passed a peak)
-    static bool lastRelayState = relayHigh_;
-    if (relayHigh_ != lastRelayState) {
-        lastRelayState = relayHigh_;
+    if (relayHigh_ != relayHighPrev_) {
+        relayHighPrev_ = relayHigh_;
         
         if (relayHigh_) {
             // Just switched to high, we crossed below setpoint (found low peak)

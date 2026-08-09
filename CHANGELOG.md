@@ -5,6 +5,19 @@ All notable changes to the easyPID library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-08-09
+
+### Fixed
+- Relay edge detection no longer uses a function-local `static` inside
+  `PIDTuner::detectPeak()`. That variable was shared by every `PIDTuner`
+  instance in the sketch and was initialised only once for the lifetime of the
+  program, so a second tuner (or a second `start()` on the same tuner) saw
+  corrupted edge state. It is now a per-instance member.
+- Initialise every `PIDTuner` member in the constructor, so calling `update()`
+  before `start()` can no longer read indeterminate values.
+
+---
+
 ## [1.0.1] - 2026-08-09
 
 ### Fixed
