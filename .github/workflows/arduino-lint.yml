@@ -1,7 +1,10 @@
 name: Arduino Lint
 
 on:
+  # Topic-branch pushes are covered by their pull request; listing only main
+  # keeps PRs from running this twice.
   push:
+    branches: [main]
   pull_request:
 
 jobs:

@@ -26,10 +26,12 @@
 #include <easyPID.h>
 #include <PIDTuner.h>  // Optional add-on module
 
-// Process parameters for simulation
-const float SETPOINT = 100.0;
+// Process parameters for simulation.
+// The plant settles at PROCESS_GAIN * 100 at full output, so 75 is its ceiling
+// and the setpoint must sit below it.
+const float SETPOINT = 37.0;
 const float PROCESS_GAIN = 0.75;
-const float PROCESS_TIME_CONSTANT = 0.15;
+const float PROCESS_TIME_CONSTANT = 1.0;
 
 // Output limits
 const float OUTPUT_MIN = 0.0;
@@ -37,7 +39,19 @@ const float OUTPUT_MAX = 255.0;
 
 // Autotuning parameters
 const float RELAY_AMPLITUDE = 50.0;  // 20% of output range
-const float NOISE_BAND = 2.0;        // Ignore oscillations smaller than this
+const float NOISE_BAND = 5.0;        // Ignore oscillations smaller than this
+
+// Operating point the relay swings around, passed to tuner.start().
+//
+// Most real actuators are unipolar: a heater or a PWM pin cannot accept a
+// negative drive. Without a bias the relay output is negative half the time
+// and clipped to zero the rest, so the measurement never crosses the setpoint,
+// the relay never switches, and tuning aborts on the timeout with no result.
+// Here 127 holds the plant at roughly 37, and the relay swings +/-50 around it.
+const float OUTPUT_BIAS = 127.0;
+
+// Progress reporting
+int lastProgressPercent = -1;
 
 // Timing
 const unsigned long SAMPLE_TIME_MS = 100;
@@ -76,12 +90,12 @@ void setup() {
   Serial.println(F("=== easyPID AutoTune Example ==="));
   Serial.println(F("Automatic PID tuning using relay method"));
   Serial.println();
-  Serial.println(F("Setpoint: "));
-  Serial.print(SETPOINT);
-  Serial.println();
-  Serial.println(F("Relay Amplitude: "));
-  Serial.print(RELAY_AMPLITUDE);
-  Serial.println();
+  Serial.print(F("Setpoint: "));
+  Serial.println(SETPOINT);
+  Serial.print(F("Relay Amplitude: +/-"));
+  Serial.println(RELAY_AMPLITUDE);
+  Serial.print(F("Output Bias: "));
+  Serial.println(OUTPUT_BIAS);
   Serial.println();
   
   // Initialize PID
@@ -92,7 +106,7 @@ void setup() {
   Serial.println(F("The system will oscillate. Please wait..."));
   Serial.println();
   
-  if (tuner.start(SETPOINT, RELAY_AMPLITUDE, NOISE_BAND)) {
+  if (tuner.start(SETPOINT, RELAY_AMPLITUDE, NOISE_BAND, OUTPUT_BIAS)) {
     currentState = STATE_TUNING;
     Serial.println(F("Autotuner started successfully"));
   } else {
@@ -113,13 +127,35 @@ void loop() {
     
     switch (currentState) {
       case STATE_INIT:
-        // Should not reach here
+        // Reached if the tuner refused to start, or if tuning failed. The
+        // output is held at zero and the sketch idles rather than pretending
+        // to control anything.
+        output = 0.0;
         break;
         
-      case STATE_TUNING:
-        // Run autotuner
+      case STATE_TUNING: {
+        // Run autotuner. start() was given OUTPUT_BIAS, so the relay already
+        // swings around the operating point and the value can go straight to
+        // the actuator.
         output = tuner.update(measurement);
-        
+        if (output < OUTPUT_MIN) output = OUTPUT_MIN;
+        if (output > OUTPUT_MAX) output = OUTPUT_MAX;
+
+        // Tuning can fail: the process may not respond to the relay, or it may
+        // never settle into a consistent limit cycle. A sketch that only ever
+        // checks isComplete() would spin here forever.
+        if (tuner.getState() == TUNER_FAILED) {
+          Serial.println();
+          Serial.println(F("=== AUTOTUNING FAILED ==="));
+          Serial.println(F("No usable limit cycle was measured. Check that:"));
+          Serial.println(F("  - the relay amplitude is large enough to move the process"));
+          Serial.println(F("  - the noise band is smaller than the expected oscillation"));
+          Serial.println(F("  - the setpoint is actually reachable"));
+          output = 0.0;
+          currentState = STATE_INIT;
+          break;
+        }
+
         // Check if tuning is complete
         if (tuner.isComplete()) {
           currentState = STATE_TUNING_COMPLETE;
@@ -137,45 +173,50 @@ void loop() {
           
           // Display tuning results for all rules
           Serial.println(F("Tuning Results:"));
-          displayTuningRule(TUNING_ZIEGLER_NICHOLS, "Ziegler-Nichols");
-          displayTuningRule(TUNING_TYREUS_LUYBEN, "Tyreus-Luyben");
-          displayTuningRule(TUNING_PESSEN, "Pessen Integral");
-          displayTuningRule(TUNING_NO_OVERSHOOT, "No Overshoot");
+          displayTuningRule(TUNING_ZIEGLER_NICHOLS, F("Ziegler-Nichols"));
+          displayTuningRule(TUNING_TYREUS_LUYBEN, F("Tyreus-Luyben"));
+          displayTuningRule(TUNING_PESSEN, F("Pessen Integral"));
+          displayTuningRule(TUNING_NO_OVERSHOOT, F("No Overshoot"));
           Serial.println();
           
-          // Apply Ziegler-Nichols tuning (can change to other rules)
+          // Apply Ziegler-Nichols tuning (can change to other rules).
+          // applyTunings() writes the gains onto the controller and resets it
+          // in one step; getTunings() + setTunings() is the manual equivalent.
           tuner.getTunings(tuned_kp, tuned_ki, tuned_kd, TUNING_ZIEGLER_NICHOLS);
-          pid.setTunings(tuned_kp, tuned_ki, tuned_kd);
+          tuner.applyTunings(TUNING_ZIEGLER_NICHOLS);
           
           Serial.println(F("Applied Ziegler-Nichols tuning to PID"));
           Serial.println(F("Now running with tuned parameters..."));
           Serial.println();
           Serial.println(F("Time(s),Setpoint,Measurement,Output,Error"));
           
-          // Reset PID state before running with new gains
-          pid.reset();
-          measurement = 0.0; // Reset process
+          measurement = 0.0; // Reset process (applyTunings already reset the PID)
           
           currentState = STATE_RUNNING_TUNED;
         } else {
-          // Print progress
-          float progress = tuner.getProgress();
-          if (((int)(progress * 100)) % 10 == 0) {
+          // Print progress only when it actually changes. The previous test
+          // fired on every loop iteration whose percentage happened to be a
+          // multiple of ten, so the same line was printed hundreds of times.
+          int percent = (int)(tuner.getProgress() * 100.0);
+          if (percent != lastProgressPercent) {
+            lastProgressPercent = percent;
             Serial.print(F("Progress: "));
-            Serial.print((int)(progress * 100));
+            Serial.print(percent);
             Serial.println(F("%"));
           }
         }
         break;
+      }
         
       case STATE_TUNING_COMPLETE:
         // Transition state (handled above)
         break;
         
-      case STATE_RUNNING_TUNED:
-        // Run PID with tuned parameters
+      case STATE_RUNNING_TUNED: {
+        // Run PID with tuned parameters. No bias here: the controller drives
+        // the actuator over its full range directly.
         output = pid.update(SETPOINT, measurement);
-        
+
         // Print data for Serial Plotter
         float timeSeconds = now / 1000.0;
         Serial.print(timeSeconds, 2);
@@ -188,6 +229,7 @@ void loop() {
         Serial.print(F(","));
         Serial.println(pid.getError(), 2);
         break;
+      }
     }
     
     // Simulate first-order process (common to all states)
@@ -197,7 +239,7 @@ void loop() {
   }
 }
 
-void displayTuningRule(TuningRule rule, const char* name) {
+void displayTuningRule(TuningRule rule, const __FlashStringHelper* name) {
   float kp, ki, kd;
   if (tuner.getTunings(kp, ki, kd, rule)) {
     Serial.print(F("  "));

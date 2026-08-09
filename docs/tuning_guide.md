@@ -22,6 +22,9 @@ output = Kp*error + Ki*∫(error*dt) + Kd*d(error)/dt
 
 Where:
 - `error = setpoint - measurement`
+  (in `REVERSE` mode the control terms use the negated value; `getError()` still
+  reports `setpoint - measurement`, while `getPterm()`/`getDterm()` are
+  direction-adjusted)
 - `Kp` = Proportional gain
 - `Ki` = Integral gain
 - `Kd` = Derivative gain
@@ -113,10 +116,12 @@ With Kd: Smoother approach, less overshoot
    - K (gain) = (change in output) / (change in input)
 4. Calculate:
    ```
-   Kp = 1.2 / (K * L)
-   Ki = 2 * Kp / T
+   Kp = 1.2 * T / (K * L)
+   Ki = Kp / (2 * L)
    Kd = 0.5 * Kp * L
    ```
+   (equivalently Ti = 2L and Td = 0.5L. The rule assumes L > 0 and works best
+   when T/L is roughly in the range 1–10.)
 
 ### Method 2: Manual Trial-and-Error (Recommended for Beginners)
 
@@ -214,7 +219,7 @@ When output saturates (hits min/max limits), the integral term keeps accumulatin
 
 ### Anti-Windup Modes
 
-#### 1. NONE (Default for testing only)
+#### 1. NONE (testing only — NOT the default)
 ```cpp
 pid.setAntiWindup(ANTIWINDUP_NONE);
 ```
@@ -222,6 +227,8 @@ pid.setAntiWindup(ANTIWINDUP_NONE);
 - Use only for initial testing or when output never saturates
 
 #### 2. CLAMP (Recommended for most applications)
+
+**This is the default.** A controller you never call `setAntiWindup()` on is already using CLAMP.
 ```cpp
 pid.setAntiWindup(ANTIWINDUP_CLAMP);
 ```
@@ -241,8 +248,12 @@ pid.setAntiWindup(ANTIWINDUP_BACKCALC);
 
 You can also limit the integral term directly:
 ```cpp
-pid.setIntegralLimits(-50, 50);  // Limit integral contribution
+pid.setIntegralLimits(-50, 50);  // Bounds the accumulator, not the Ki-scaled term
 ```
+
+These bound the raw error-time accumulator, so the resulting contribution to
+the output is `Ki * limit` — with `Ki = 2.0` the limits above allow ±100 of
+output, not ±50. Ignored if `min >= max`.
 
 **When to use:**
 - When integral term grows too large
@@ -283,10 +294,12 @@ pid.setDerivativeFilter(FILTER_EMA, 0.7);  // alpha = 0.7
 - Simple and effective
 - **Recommended starting point**
 
-**Alpha parameter (0.0 to 1.0):**
+**Alpha parameter (clamped to 0.0 – 0.999):**
 - Higher alpha (0.8-0.95) = more filtering, slower response
 - Lower alpha (0.3-0.5) = less filtering, faster response
 - Typical: 0.7
+- Exactly 1.0 is not permitted: it would freeze the filtered derivative and
+  disable the D term entirely, so the value is clamped to 0.999
 
 **When to use:**
 - When derivative term causes jitter
@@ -336,12 +349,19 @@ void loop() {
     float output = tuner.update(measurement);
     applyOutput(output);
   } else {
-    // Get tuned parameters
-    float kp, ki, kd;
-    tuner.getTunings(kp, ki, kd, TUNING_ZIEGLER_NICHOLS);
-    pid.setTunings(kp, ki, kd);
-    pid.reset();
-    
+    // Apply the tuning exactly once, then run normally.
+    // Calling reset() every iteration would wipe the integral and the previous
+    // error on every sample, degrading the controller to proportional-only
+    // with a permanent steady-state offset.
+    static bool applied = false;
+    if (!applied) {
+      float kp, ki, kd;
+      tuner.getTunings(kp, ki, kd, TUNING_ZIEGLER_NICHOLS);
+      pid.setTunings(kp, ki, kd);
+      pid.reset();
+      applied = true;
+    }
+
     // Normal PID control
     float output = pid.update(setpoint, measurement);
     applyOutput(output);
