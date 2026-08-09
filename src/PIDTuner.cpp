@@ -80,7 +80,13 @@ bool PIDTuner::start(float setpoint, float relayAmplitude, float noiseBand) {
     resultsValid_ = false;
     ultimateGain_ = 0.0f;
     ultimatePeriod_ = 0.0f;
-    
+
+    // The relay run drives the plant directly and will swing it well away from
+    // wherever the controller had it, so any integral the controller had
+    // accumulated is stale by the time tuning finishes. Clear it now so the
+    // newly tuned gains start from a clean state.
+    pid_.reset();
+
     state_ = TUNER_RELAY_STEP;
     return true;
 }
@@ -120,8 +126,11 @@ float PIDTuner::update(float measurement) {
     
     // Check if enough cycles collected
     if (cyclesDetected_ >= cyclesNeeded_) {
+        state_ = TUNER_ANALYZING;
         calculateResults();
-        state_ = TUNER_COMPLETE;
+        // Only report COMPLETE when there is actually a usable result;
+        // otherwise fall back to IDLE so getState() cannot claim success.
+        state_ = resultsValid_ ? TUNER_COMPLETE : TUNER_IDLE;
     }
     
     return output;
@@ -280,10 +289,13 @@ TunerState PIDTuner::getState() const {
 }
 
 float PIDTuner::getProgress() const {
-    if (state_ != TUNER_RELAY_STEP) {
+    if (state_ == TUNER_COMPLETE || state_ == TUNER_ANALYZING) {
+        return 1.0f;
+    }
+    if (state_ != TUNER_RELAY_STEP || cyclesNeeded_ <= 0) {
         return 0.0f;
     }
-    
+
     float progress = (float)cyclesDetected_ / (float)cyclesNeeded_;
     if (progress > 1.0f) progress = 1.0f;
     return progress;

@@ -5,6 +5,24 @@ All notable changes to the easyPID library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] - 2026-08-09
+
+### Fixed
+- `getProgress()` returned `0.0` after tuning finished instead of `1.0`, because
+  it early-returned for any state other than `TUNER_RELAY_STEP`. A sketch
+  displaying progress showed it collapse back to zero on success.
+- `getState()` no longer reports `TUNER_COMPLETE` when the run produced no
+  usable result. It now falls back to `TUNER_IDLE`, so `getState()` and
+  `isComplete()` can no longer disagree.
+- `TUNER_ANALYZING` was declared but never entered. It is now set while results
+  are computed. It is transient within a single `update()` call, and the header
+  documents it as such rather than implying it is externally observable.
+- `PIDTuner` held a `PIDController&` that was never used. `start()` now calls
+  `reset()` on it: the relay run drives the plant directly, so any integral the
+  controller had accumulated is stale by the time tuning completes.
+
+---
+
 ## [1.0.5] - 2026-08-09
 
 ### Fixed

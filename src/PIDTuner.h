@@ -43,9 +43,9 @@ enum TuningRule {
  * @brief Autotuner state machine states
  */
 enum TunerState {
-    TUNER_IDLE,           ///< Not running
+    TUNER_IDLE,           ///< Not running (also entered on timeout or on an unusable result)
     TUNER_RELAY_STEP,     ///< Applying relay feedback
-    TUNER_ANALYZING,      ///< Computing tuning parameters
+    TUNER_ANALYZING,      ///< Computing tuning parameters (transient, within one update() call)
     TUNER_COMPLETE        ///< Tuning complete, results ready
 };
 
@@ -97,6 +97,9 @@ public:
      * @return true if started successfully
      * @note Typical relayAmplitude: 10-20% of full output range
      * @note Typical noiseBand: 1-5% of setpoint value
+     * @note Calls reset() on the attached PIDController. The relay run drives
+     *       the plant directly, so any integral the controller had accumulated
+     *       is stale once tuning completes.
      */
     bool start(float setpoint, float relayAmplitude, float noiseBand = 0.5f);
 
@@ -148,7 +151,8 @@ public:
 
     /**
      * @brief Get progress indication (0.0 to 1.0)
-     * @return Progress value
+     * @return Fraction of the required cycles collected while tuning, 1.0 once
+     *         tuning has completed, 0.0 when idle
      */
     float getProgress() const;
 
