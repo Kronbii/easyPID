@@ -216,6 +216,7 @@ private:
     // State variables (based on proven tracker.h implementation)
     float error_;
     float previousError_;
+    bool firstUpdate_;   ///< No previous error yet, so no derivative can be formed
     float integral_;
     float derivative_;
     float derivativeFiltered_;

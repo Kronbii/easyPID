@@ -13,6 +13,7 @@ PIDController::PIDController(float kp, float ki, float kd, float outMin, float o
     // Initialize state variables
     error_ = 0.0f;
     previousError_ = 0.0f;
+    firstUpdate_ = true;
     integral_ = 0.0f;
     derivative_ = 0.0f;
     derivativeFiltered_ = 0.0f;
@@ -125,8 +126,20 @@ float PIDController::computePID(float setpoint, float measurement, float dt) {
     // Calculate derivative term with dt scaling (based on tracker.h line 72)
     // Original: derivative_error_ = current_error_ - previous_error_;
     // Enhanced: derivative = (error - previousError) / dt (for time-aware differentiation)
-    derivative_ = (error_ - previousError_) / dt;
-    
+    //
+    // On the very first update after begin()/reset() there is no previous error
+    // to difference against. Treating the stale 0.0 as a real sample produced a
+    // derivative of error/dt, i.e. a large spurious kick exactly when the error
+    // is typically at its largest. Start the derivative at zero instead and let
+    // it develop from the second sample onward.
+    if (firstUpdate_) {
+        derivative_ = 0.0f;
+        derivativeFiltered_ = 0.0f;
+        firstUpdate_ = false;
+    } else {
+        derivative_ = (error_ - previousError_) / dt;
+    }
+
     // Apply derivative filtering if enabled
     float derivativeToUse = derivative_;
     if (filterMode_ == FILTER_EMA) {
@@ -230,6 +243,7 @@ void PIDController::reset() {
     // Reset all state variables (similar to tracker.h resetIntegral, lines 62-64)
     error_ = 0.0f;
     previousError_ = 0.0f;
+    firstUpdate_ = true;
     integral_ = 0.0f;
     derivative_ = 0.0f;
     derivativeFiltered_ = 0.0f;

@@ -5,6 +5,18 @@ All notable changes to the easyPID library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.7] - 2026-08-09
+
+### Fixed
+- No more derivative kick on the first update after `begin()` or `reset()`.
+  With `previousError_` still at its initial `0.0`, the first sample computed
+  `(error - 0) / dt`, producing a derivative proportional to the entire error
+  at exactly the moment the error is normally largest. With `Kd = 10`, a step
+  to an error of 100 at `dt = 0.1 s` produced a D term of 10000. The derivative
+  now starts at zero and develops from the second sample onward.
+
+---
+
 ## [1.0.6] - 2026-08-09
 
 ### Fixed
