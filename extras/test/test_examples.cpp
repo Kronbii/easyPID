@@ -93,12 +93,12 @@ int main() {
     PIDController pid(1.0f, 0.0f, 0.0f, 0.0f, 255.0f);
     pid.begin();
     PIDTuner tuner(pid);
-    check(tuner.start(A_SP, A_RELAY, A_BAND), "AutoTunePID: tuner.start() accepted");
+    check(tuner.start(A_SP, A_RELAY, A_BAND, A_BIAS), "AutoTunePID: tuner.start() accepted");
 
     float y = 0.0f;
     int steps = 0;
     while (tuner.getState() == TUNER_RELAY_STEP && steps < 100000) {
-        float u = tuner.update(y) + A_BIAS;
+        float u = tuner.update(y);   // start() was given the bias
         if (u < 0.0f) u = 0.0f;
         if (u > 255.0f) u = 255.0f;
         y = plantStep(y, u, A_GAIN, A_TAU, A_DT);

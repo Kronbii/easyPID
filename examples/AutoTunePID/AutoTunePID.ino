@@ -41,15 +41,13 @@ const float OUTPUT_MAX = 255.0;
 const float RELAY_AMPLITUDE = 50.0;  // 20% of output range
 const float NOISE_BAND = 5.0;        // Ignore oscillations smaller than this
 
-// The tuner swings its output symmetrically about zero, between
-// -RELAY_AMPLITUDE and +RELAY_AMPLITUDE. Most real actuators are unipolar --
-// a heater or a PWM pin cannot accept a negative drive -- so the relay has to
-// be centred on an operating point that puts the process near the setpoint.
-// Here 127 holds the plant at roughly 37, and the relay swings around that.
+// Operating point the relay swings around, passed to tuner.start().
 //
-// Without this bias the relay output is negative half the time and clipped to
-// zero the rest, the measurement never crosses the setpoint, the relay never
-// switches, and tuning aborts on the timeout with no result.
+// Most real actuators are unipolar: a heater or a PWM pin cannot accept a
+// negative drive. Without a bias the relay output is negative half the time
+// and clipped to zero the rest, so the measurement never crosses the setpoint,
+// the relay never switches, and tuning aborts on the timeout with no result.
+// Here 127 holds the plant at roughly 37, and the relay swings +/-50 around it.
 const float OUTPUT_BIAS = 127.0;
 
 // Progress reporting
@@ -108,7 +106,7 @@ void setup() {
   Serial.println(F("The system will oscillate. Please wait..."));
   Serial.println();
   
-  if (tuner.start(SETPOINT, RELAY_AMPLITUDE, NOISE_BAND)) {
+  if (tuner.start(SETPOINT, RELAY_AMPLITUDE, NOISE_BAND, OUTPUT_BIAS)) {
     currentState = STATE_TUNING;
     Serial.println(F("Autotuner started successfully"));
   } else {
@@ -136,17 +134,17 @@ void loop() {
         break;
         
       case STATE_TUNING: {
-        // Run autotuner. The relay output is centred on zero, so the operating
-        // bias is added before it reaches the actuator.
-        output = tuner.update(measurement) + OUTPUT_BIAS;
+        // Run autotuner. start() was given OUTPUT_BIAS, so the relay already
+        // swings around the operating point and the value can go straight to
+        // the actuator.
+        output = tuner.update(measurement);
         if (output < OUTPUT_MIN) output = OUTPUT_MIN;
         if (output > OUTPUT_MAX) output = OUTPUT_MAX;
 
         // Tuning can fail: the process may not respond to the relay, or it may
-        // never settle into a consistent limit cycle. The tuner returns to
-        // TUNER_IDLE in that case, so a sketch that only ever checks
-        // isComplete() would spin here forever.
-        if (!tuner.isComplete() && tuner.getState() == TUNER_IDLE) {
+        // never settle into a consistent limit cycle. A sketch that only ever
+        // checks isComplete() would spin here forever.
+        if (tuner.getState() == TUNER_FAILED) {
           Serial.println();
           Serial.println(F("=== AUTOTUNING FAILED ==="));
           Serial.println(F("No usable limit cycle was measured. Check that:"));
@@ -181,18 +179,18 @@ void loop() {
           displayTuningRule(TUNING_NO_OVERSHOOT, F("No Overshoot"));
           Serial.println();
           
-          // Apply Ziegler-Nichols tuning (can change to other rules)
+          // Apply Ziegler-Nichols tuning (can change to other rules).
+          // applyTunings() writes the gains onto the controller and resets it
+          // in one step; getTunings() + setTunings() is the manual equivalent.
           tuner.getTunings(tuned_kp, tuned_ki, tuned_kd, TUNING_ZIEGLER_NICHOLS);
-          pid.setTunings(tuned_kp, tuned_ki, tuned_kd);
+          tuner.applyTunings(TUNING_ZIEGLER_NICHOLS);
           
           Serial.println(F("Applied Ziegler-Nichols tuning to PID"));
           Serial.println(F("Now running with tuned parameters..."));
           Serial.println();
           Serial.println(F("Time(s),Setpoint,Measurement,Output,Error"));
           
-          // Reset PID state before running with new gains
-          pid.reset();
-          measurement = 0.0; // Reset process
+          measurement = 0.0; // Reset process (applyTunings already reset the PID)
           
           currentState = STATE_RUNNING_TUNED;
         } else {

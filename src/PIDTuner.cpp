@@ -34,6 +34,7 @@ PIDTuner::PIDTuner(PIDController& pid)
     relayHighPrev_ = false;
     outputHigh_ = 0.0f;
     outputLow_ = 0.0f;
+    outputBias_ = 0.0f;
 
     cycleMax_ = 0.0f;
     cycleMin_ = 0.0f;
@@ -48,8 +49,9 @@ PIDTuner::PIDTuner(PIDController& pid)
     amplitudeSum_ = 0.0f;
 }
 
-bool PIDTuner::start(float setpoint, float relayAmplitude, float noiseBand) {
-    if (state_ != TUNER_IDLE && state_ != TUNER_COMPLETE) {
+bool PIDTuner::start(float setpoint, float relayAmplitude, float noiseBand,
+                     float outputBias) {
+    if (state_ == TUNER_RELAY_STEP || state_ == TUNER_ANALYZING) {
         return false; // Already running
     }
 
@@ -65,9 +67,11 @@ bool PIDTuner::start(float setpoint, float relayAmplitude, float noiseBand) {
     relayAmplitude_ = relayAmplitude;
     noiseBand_ = noiseBand;
     
-    // Set relay output levels
-    outputHigh_ = relayAmplitude_;
-    outputLow_ = -relayAmplitude_;
+    // Set relay output levels, centred on the requested operating point.
+    // With the default bias of 0 this is the symmetric +/-amplitude swing.
+    outputBias_ = outputBias;
+    outputHigh_ = outputBias_ + relayAmplitude_;
+    outputLow_ = outputBias_ - relayAmplitude_;
     
     // Reset detection variables
     relayHigh_ = false;
@@ -121,7 +125,7 @@ float PIDTuner::update(float measurement) {
         // result or leaves resultsValid_ false.
         state_ = TUNER_ANALYZING;
         calculateResults();
-        state_ = resultsValid_ ? TUNER_COMPLETE : TUNER_IDLE;
+        state_ = resultsValid_ ? TUNER_COMPLETE : TUNER_FAILED;
         return 0.0f;
     }
 
@@ -141,9 +145,9 @@ float PIDTuner::update(float measurement) {
     if (cyclesDetected_ >= cyclesNeeded_) {
         state_ = TUNER_ANALYZING;
         calculateResults();
-        // Only report COMPLETE when there is actually a usable result;
-        // otherwise fall back to IDLE so getState() cannot claim success.
-        state_ = resultsValid_ ? TUNER_COMPLETE : TUNER_IDLE;
+        // Only report COMPLETE when there is actually a usable result, so
+        // getState() and isComplete() cannot disagree.
+        state_ = resultsValid_ ? TUNER_COMPLETE : TUNER_FAILED;
     }
     
     return output;
@@ -242,6 +246,21 @@ bool PIDTuner::getTunings(float& kp, float& ki, float& kd, TuningRule rule) cons
     return true;
 }
 
+bool PIDTuner::applyTunings(TuningRule rule) {
+    float kp, ki, kd;
+    if (!getTunings(kp, ki, kd, rule)) {
+        return false;
+    }
+
+    pid_.setTunings(kp, ki, kd);
+
+    // The carried integral was accumulated under the old gains, and the relay
+    // run left the plant somewhere unrelated to normal operation, so starting
+    // clean is the only sensible hand-off.
+    pid_.reset();
+    return true;
+}
+
 void PIDTuner::applyTuningRule(float& kp, float& ki, float& kd, TuningRule rule) const {
     float Ku = ultimateGain_;
     float Pu = ultimatePeriod_;
@@ -306,7 +325,7 @@ float PIDTuner::getProgress() const {
         return 1.0f;
     }
     if (state_ != TUNER_RELAY_STEP || cyclesNeeded_ <= 0) {
-        return 0.0f;
+        return 0.0f;   // IDLE or FAILED
     }
 
     float progress = (float)cyclesDetected_ / (float)cyclesNeeded_;

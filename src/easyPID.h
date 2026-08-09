@@ -3,7 +3,6 @@
  * @brief General-purpose PID Controller for Arduino
  * @author Rami Kronbi
  * @date 2024
- * @version 1.0.0
  * 
  * A feature-rich PID controller library with:
  * - Multi-instance support (no global state)

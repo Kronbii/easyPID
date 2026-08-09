@@ -185,9 +185,10 @@ static void test_tuner_timeout() {
     for (int i = 0; i < 5000; i++) {
         tuner.update(0.0f);
         mockAdvance(100);
-        if (tuner.getState() == TUNER_IDLE) break;
+        if (tuner.getState() != TUNER_RELAY_STEP) break;
     }
-    check(tuner.getState() == TUNER_IDLE, "tuner times out back to TUNER_IDLE",
+    // Since 1.1.0 a failed run is distinguishable from "never started".
+    check(tuner.getState() == TUNER_FAILED, "tuner times out into TUNER_FAILED",
           "state=" + std::to_string((int)tuner.getState()));
     check(!tuner.isComplete(), "isComplete() stays false after timeout");
 }
@@ -523,6 +524,125 @@ static void test_first_sample_flag_survives_zero_dt() {
 }
 
 // ---------------------------------------------------------------------------
+static void test_relay_output_bias() {
+    printf("\n[16] start() outputBias centres the relay on an operating point\n");
+    mockSetMillis(1000);
+
+    PIDController pid(1.0f, 0.0f, 0.0f, 0.0f, 255.0f);
+    pid.begin();
+    PIDTuner tuner(pid);
+    tuner.start(50.0f, 40.0f, 0.5f, 127.0f);
+
+    // Sweep the measurement across the band and record the extremes of the
+    // relay output. They must bracket the bias, not zero.
+    // Only sample while the tuner is actually relaying: update() returns 0
+    // once the run ends, which would otherwise pollute the observed range.
+    float lo = 1e9f, hi = -1e9f;
+    for (int i = 0; i < 40 && tuner.getState() == TUNER_RELAY_STEP; i++) {
+        float meas = (i % 2 == 0) ? 0.0f : 100.0f;   // force both relay states
+        float u = tuner.update(meas);
+        if (tuner.getState() == TUNER_RELAY_STEP) {
+            if (u < lo) lo = u;
+            if (u > hi) hi = u;
+        }
+        mockAdvance(100);
+    }
+    printf("        relay output range: %.1f .. %.1f (bias 127, amplitude 40)\n", lo, hi);
+    check(std::fabs(lo - 87.0f) < 1e-3f, "low rail is bias - amplitude",
+          "lo=" + std::to_string(lo));
+    check(std::fabs(hi - 167.0f) < 1e-3f, "high rail is bias + amplitude",
+          "hi=" + std::to_string(hi));
+    check(lo > 0.0f, "no negative drive is produced for a unipolar actuator");
+
+    // Default bias must preserve the old symmetric behaviour exactly.
+    mockSetMillis(1000);
+    PIDController pid2(1.0f, 0.0f, 0.0f, 0.0f, 255.0f);
+    pid2.begin();
+    PIDTuner t2(pid2);
+    t2.start(50.0f, 40.0f, 0.5f);
+    float lo2 = 1e9f, hi2 = -1e9f;
+    for (int i = 0; i < 40 && t2.getState() == TUNER_RELAY_STEP; i++) {
+        float u = t2.update((i % 2 == 0) ? 0.0f : 100.0f);
+        if (t2.getState() == TUNER_RELAY_STEP) {
+            if (u < lo2) lo2 = u;
+            if (u > hi2) hi2 = u;
+        }
+        mockAdvance(100);
+    }
+    check(std::fabs(lo2 + 40.0f) < 1e-3f && std::fabs(hi2 - 40.0f) < 1e-3f,
+          "omitting the bias keeps the symmetric +/-amplitude swing",
+          "lo=" + std::to_string(lo2) + " hi=" + std::to_string(hi2));
+}
+
+// ---------------------------------------------------------------------------
+static void test_tuner_failed_state() {
+    printf("\n[17] A failed run reports TUNER_FAILED, not TUNER_IDLE\n");
+    mockSetMillis(1000);
+
+    PIDController pid(1.0f, 0.0f, 0.0f, -100.0f, 100.0f);
+    pid.begin();
+    PIDTuner tuner(pid);
+
+    check(tuner.getState() == TUNER_IDLE, "a fresh tuner is IDLE");
+
+    tuner.start(50.0f, 40.0f, 0.5f);
+    for (int i = 0; i < 5000 && tuner.getState() == TUNER_RELAY_STEP; i++) {
+        tuner.update(0.0f);          // pinned: relay never switches
+        mockAdvance(100);
+    }
+    check(tuner.getState() == TUNER_FAILED, "a timed-out run reports TUNER_FAILED",
+          "state=" + std::to_string((int)tuner.getState()));
+    check(!tuner.isComplete(), "isComplete() stays false");
+    check(tuner.getProgress() == 0.0f, "progress reads 0.0 after failure");
+
+    // A failed run must not block a retry.
+    check(tuner.start(50.0f, 40.0f, 0.5f), "start() is accepted again after failure");
+
+    // Invalid parameters are rejected.
+    PIDController pid3(1.0f, 0.0f, 0.0f, 0.0f, 255.0f);
+    pid3.begin();
+    PIDTuner t3(pid3);
+    check(!t3.start(50.0f, 0.0f, 0.5f), "start() rejects a zero relay amplitude");
+    check(!t3.start(50.0f, -5.0f, 0.5f), "start() rejects a negative relay amplitude");
+    check(!t3.start(50.0f, 40.0f, -1.0f), "start() rejects a negative noise band");
+}
+
+// ---------------------------------------------------------------------------
+static void test_apply_tunings() {
+    printf("\n[18] applyTunings() writes the gains onto the attached controller\n");
+    mockSetMillis(1000);
+
+    PIDController pid(1.0f, 0.0f, 0.0f, -100.0f, 100.0f);
+    pid.begin();
+    PIDTuner tuner(pid);
+
+    // Before any run there is nothing to apply.
+    check(!tuner.applyTunings(), "applyTunings() fails before a successful run");
+
+    Plant plant(2.0f, 0.5f, 6);
+    tuner.start(50.0f, 40.0f, 0.5f, 25.0f);
+    for (int i = 0; i < 200; i++) plant.step(25.0f, 0.1f);
+    for (int i = 0; i < 4000 && tuner.getState() == TUNER_RELAY_STEP; i++) {
+        plant.step(tuner.update(plant.value()), 0.1f);
+        mockAdvance(100);
+    }
+    check(tuner.isComplete(), "tuning completes with a biased relay");
+
+    float kp, ki, kd;
+    tuner.getTunings(kp, ki, kd, TUNING_TYREUS_LUYBEN);
+    check(tuner.applyTunings(TUNING_TYREUS_LUYBEN), "applyTunings() succeeds");
+
+    // Drive one sample and confirm the controller is using the new Kp.
+    pid.setAntiWindup(ANTIWINDUP_NONE);
+    mockAdvance(100);
+    pid.update(10.0f, 0.0f);
+    printf("        expected Kp=%.4f, observed P/error=%.4f\n", kp, pid.getPterm() / 10.0f);
+    check(std::fabs(pid.getPterm() / 10.0f - kp) < 1e-3f,
+          "the controller's P term reflects the applied Kp",
+          "expected=" + std::to_string(kp) + " got=" + std::to_string(pid.getPterm() / 10.0f));
+}
+
+// ---------------------------------------------------------------------------
 int main() {
     printf("=========== easyPID host test suite ===========\n");
     test_autotuner_completes();
@@ -541,6 +661,9 @@ int main() {
     test_clamp_does_not_lock_output();
     test_no_time_no_integration();
     test_first_sample_flag_survives_zero_dt();
+    test_relay_output_bias();
+    test_tuner_failed_state();
+    test_apply_tunings();
 
     printf("\n===============================================\n");
     printf("PASS: %d   FAIL: %d\n", g_pass, g_fail);

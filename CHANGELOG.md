@@ -5,6 +5,48 @@ All notable changes to the easyPID library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-08-09
+
+Three additions to `PIDTuner`. All are backward compatible: existing sketches
+compile and behave identically without changes. They are grouped into one minor
+release because new public API cannot be a patch under semantic versioning.
+
+### Added
+- **`start()` takes an optional `outputBias`**, the operating point the relay
+  swings around. The output now ranges over
+  `[outputBias - relayAmplitude, outputBias + relayAmplitude]`.
+
+  This makes the autotuner usable on unipolar hardware for the first time. The
+  relay previously swung symmetrically about zero, so on a heater or a PWM pin
+  half of every period was a negative drive the hardware clips to zero — the
+  measurement never crossed the setpoint, the relay never switched, and tuning
+  timed out with no result. The default of `0.0` reproduces the old symmetric
+  swing exactly, which suits a bipolar actuator.
+
+- **`TUNER_FAILED`**, so a run that produced no usable result is distinguishable
+  from one that was never started. Timeouts and unusable results previously
+  returned the tuner to `TUNER_IDLE`, which is also its state at construction,
+  so a sketch could not tell "tuning failed" from "not started yet" and one that
+  polled only `isComplete()` would spin forever. The enumerator is **appended**,
+  so the numeric values of the existing ones are unchanged. `start()` accepts a
+  retry after a failed run.
+
+- **`applyTunings(rule)`**, which writes the computed gains onto the attached
+  controller and resets it, in place of `getTunings()` + `setTunings()` +
+  `reset()`. This is also what finally makes the `PIDController&` the tuner has
+  always held do something a caller can see.
+
+### Changed
+- `update()` documents that it returns 0 outside `TUNER_RELAY_STEP`, so callers
+  check `getState()` before treating the value as a drive level.
+- The class documentation now shows the hysteresis-corrected `Ku` relation used
+  since 1.0.4, and a usage example covering the failure path.
+- `AutoTunePID.ino` uses all three additions.
+- Removed the stale `@version 1.0.0` tags from the headers; `library.properties`
+  is the single source of truth for the version.
+
+---
+
 ## [1.0.21] - 2026-08-09
 
 ### Fixed

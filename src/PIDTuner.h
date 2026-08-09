@@ -3,7 +3,6 @@
  * @brief Optional PID Autotuner Module (Relay/Limit-Cycle Method)
  * @author Rami Kronbi
  * @date 2024
- * @version 1.0.0
  * 
  * This is an OPTIONAL add-on module for automatic PID tuning.
  * Users must explicitly include <PIDTuner.h> to use autotuning.
@@ -43,10 +42,13 @@ enum TuningRule {
  * @brief Autotuner state machine states
  */
 enum TunerState {
-    TUNER_IDLE,           ///< Not running (also entered on timeout or on an unusable result)
+    TUNER_IDLE,           ///< Not running, and not yet attempted
     TUNER_RELAY_STEP,     ///< Applying relay feedback
     TUNER_ANALYZING,      ///< Computing tuning parameters (transient, within one update() call)
-    TUNER_COMPLETE        ///< Tuning complete, results ready
+    TUNER_COMPLETE,       ///< Tuning complete, results ready
+    TUNER_FAILED          ///< A run was attempted and produced no usable result
+    // TUNER_FAILED is appended rather than inserted so the numeric values of
+    // the existing enumerators are unchanged for code that compares them.
 };
 
 /**
@@ -58,26 +60,28 @@ enum TunerState {
  * 
  * 1. Applying relay (bang-bang) control around setpoint
  * 2. Measuring resulting oscillation period (Pu) and amplitude (a)
- * 3. Calculating ultimate gain: Ku = 4*d / (π*a)
- *    where d = relay amplitude
+ * 3. Calculating ultimate gain: Ku = 4*d / (pi * sqrt(a^2 - h^2))
+ *    where d = relay amplitude, a = half peak-to-peak oscillation amplitude,
+ *    and h = the noise band acting as relay hysteresis
  * 4. Applying tuning rules to get Kp, Ki, Kd
- * 
+ *
  * Usage:
  * @code
  * PIDController pid(1.0, 0.0, 0.0, 0, 255);
  * PIDTuner tuner(pid);
- * 
- * // In setup:
- * tuner.start(setpoint, relayAmplitude);
- * 
+ *
+ * // In setup. The fourth argument centres the relay on an operating point,
+ * // which a unipolar actuator (0..255) requires; omit it for a bipolar one.
+ * tuner.start(setpoint, relayAmplitude, noiseBand, 127.0);
+ *
  * // In loop:
- * float output = tuner.update(measurement);
- * applyOutput(output);
- * 
- * if (tuner.isComplete()) {
- *   float kp, ki, kd;
- *   tuner.getTunings(kp, ki, kd, TUNING_ZIEGLER_NICHOLS);
- *   pid.setTunings(kp, ki, kd);
+ * if (tuner.getState() == TUNER_RELAY_STEP) {
+ *   applyOutput(tuner.update(measurement));
+ * } else if (tuner.isComplete()) {
+ *   tuner.applyTunings(TUNING_ZIEGLER_NICHOLS);   // straight onto pid
+ *   applyOutput(pid.update(setpoint, measurement));
+ * } else if (tuner.getState() == TUNER_FAILED) {
+ *   // no usable limit cycle was measured
  * }
  * @endcode
  */
@@ -94,6 +98,15 @@ public:
      * @param setpoint Target value for tuning
      * @param relayAmplitude Amplitude of relay output (higher = more aggressive)
      * @param noiseBand Noise band around setpoint (ignore small oscillations)
+     * @param outputBias Operating point the relay swings around. The tuner
+     *        output ranges over [outputBias - relayAmplitude,
+     *        outputBias + relayAmplitude]. Defaults to 0, giving the symmetric
+     *        +/-relayAmplitude swing of earlier versions, which only suits a
+     *        bipolar actuator. For a unipolar one -- a heater, a PWM pin,
+     *        anything on 0..255 -- set a bias that holds the process near the
+     *        setpoint. Without it half of every relay period is a negative
+     *        drive the hardware clips to zero, the measurement never crosses
+     *        the setpoint, and tuning times out with no result.
      * @return true if started successfully; false if a run is already in
      *         progress, or if relayAmplitude <= 0 or noiseBand < 0
      * @note Typical relayAmplitude: 10-20% of full output range
@@ -102,12 +115,16 @@ public:
      *       the plant directly, so any integral the controller had accumulated
      *       is stale once tuning completes.
      */
-    bool start(float setpoint, float relayAmplitude, float noiseBand = 0.5f);
+    bool start(float setpoint, float relayAmplitude, float noiseBand = 0.5f,
+               float outputBias = 0.0f);
 
     /**
      * @brief Update autotuner (call in loop during tuning)
      * @param measurement Current process variable
-     * @return Control output to apply to system
+     * @return Relay output to apply to the system while tuning, in the range
+     *         [outputBias - relayAmplitude, outputBias + relayAmplitude].
+     *         Returns 0 when the tuner is not in TUNER_RELAY_STEP, so check
+     *         getState() before treating the value as a drive level.
      */
     float update(float measurement);
 
@@ -126,6 +143,15 @@ public:
      * @return true if parameters available
      */
     bool getTunings(float& kp, float& ki, float& kd, TuningRule rule = TUNING_ZIEGLER_NICHOLS) const;
+
+    /**
+     * @brief Apply the computed tunings directly to the attached controller
+     * @param rule Tuning rule to apply (default: Ziegler-Nichols)
+     * @return true if gains were available and applied, false otherwise
+     * @note Also calls reset() on the controller, since gains changed under it
+     *       and the carried integral was accumulated with the old ones.
+     */
+    bool applyTunings(TuningRule rule = TUNING_ZIEGLER_NICHOLS);
 
     /**
      * @brief Get ultimate gain (Ku) found during tuning
@@ -153,7 +179,7 @@ public:
     /**
      * @brief Get progress indication (0.0 to 1.0)
      * @return Fraction of the required cycles collected while tuning, 1.0 once
-     *         tuning has completed, 0.0 when idle
+     *         tuning has completed, 0.0 when idle or failed
      */
     float getProgress() const;
 
@@ -171,6 +197,7 @@ private:
     bool relayHighPrev_;   ///< Relay state at the previous update, for edge detection
     float outputHigh_;
     float outputLow_;
+    float outputBias_;     ///< Operating point the relay swings around
     
     // Limit-cycle measurement: running extremes of the cycle in progress.
     // The process peak lags the relay switch, so the extremes have to be
