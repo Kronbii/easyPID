@@ -5,6 +5,33 @@ All notable changes to the easyPID library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.19] - 2026-08-09
+
+### Fixed
+- The `@file` tag in `src/easyPID.cpp` said `PIDController.cpp`, a name that
+  does not exist in the repository, so Doxygen filed the translation unit under
+  a phantom file and cross-references from `easyPID.h` resolved to nothing.
+- Including `easyPID.h` after a library that defines `DIRECT`/`REVERSE` as
+  macros (PID_v1 does) made the preprocessor rewrite the `ControlDirection`
+  enumerator list, and the compiler blamed easyPID for another library's macros
+  with an unreadable parse error. A `#error` now names the actual cause and the
+  two ways out. The enumerators are unchanged; renaming them would break every
+  existing call site, so that is a 2.0 consideration.
+
+### Documentation
+- Removed the "based on tracker.h lines N-M" citations throughout. That file is
+  not in the repository, so none of the eight references could be checked. The
+  substantive "original vs. enhanced" explanations are kept.
+- The constructor block now lists the defaults it actually applies, which were
+  documented nowhere: `ANTIWINDUP_CLAMP`, `FILTER_NONE`, alpha 0.8, `DIRECT`,
+  100 ms sample time, and integral limits inactive.
+- `getPterm()`/`getDterm()` note that they are direction-adjusted and therefore
+  carry the opposite sign to `getError()` under `REVERSE`. The terms sum to the
+  pre-clamp output; the error is the plain physical error. Both are useful, and
+  the difference now has a stated contract instead of being an accident.
+
+---
+
 ## [1.0.18] - 2026-08-09
 
 ### Fixed

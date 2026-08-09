@@ -37,6 +37,14 @@ enum DerivativeFilterMode {
     FILTER_EMA      ///< Exponential Moving Average (1st-order low-pass)
 };
 
+// DIRECT and REVERSE are extremely generic identifiers, and some other PID
+// libraries define them as macros. If one of those headers is included first,
+// the preprocessor rewrites the enumerator list below and the compiler reports
+// a parse error against this file rather than the real cause.
+#if defined(DIRECT) || defined(REVERSE)
+#error "easyPID: DIRECT/REVERSE are already defined as macros by another library (PID_v1 does this). Include easyPID.h before it, or #undef DIRECT and REVERSE first."
+#endif
+
 /**
  * @enum ControlDirection
  * @brief Control action direction
@@ -58,7 +66,6 @@ enum ControlDirection {
  *   output = Kp*error + Ki*integral(error*dt) + Kd*d(error)/dt
  * 
  * @note All internal calculations use float for AVR compatibility
- * @note Based on proven implementation from light-tracking system
  */
 class PIDController {
 public:
@@ -69,6 +76,13 @@ public:
      * @param kd Derivative gain
      * @param outMin Minimum output limit
      * @param outMax Maximum output limit
+     *
+     * Defaults applied by this constructor:
+     *  - anti-windup:      ANTIWINDUP_CLAMP
+     *  - derivative filter: FILTER_NONE, alpha 0.8 (used only if EMA is enabled)
+     *  - direction:        DIRECT
+     *  - sample time:      100 ms (advisory only, see setSampleTime())
+     *  - integral limits:  inactive until setIntegralLimits() is called
      */
     PIDController(float kp, float ki, float kd, float outMin, float outMax);
 
@@ -202,7 +216,10 @@ public:
 
     /**
      * @brief Get proportional term contribution
-     * @return P term value
+     * @return P term value, i.e. its actual contribution to the output. In
+     *         REVERSE mode this is direction-adjusted and therefore carries the
+     *         opposite sign to getError(); P + I + D always reconstructs the
+     *         pre-clamp output.
      */
     float getPterm() const;
 
@@ -214,7 +231,7 @@ public:
 
     /**
      * @brief Get derivative term contribution
-     * @return D term value
+     * @return D term value, direction-adjusted like getPterm()
      */
     float getDterm() const;
 
@@ -239,7 +256,7 @@ private:
     float integralMax_;
     bool integralLimitsSet_;
 
-    // State variables (based on proven tracker.h implementation)
+    // State variables
     float error_;         ///< Reported error, always setpoint - measurement
     float controlError_;  ///< Error actually driving the terms (negated when REVERSE)
     float previousError_;

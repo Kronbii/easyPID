@@ -1,5 +1,5 @@
 /**
- * @file PIDController.cpp
+ * @file easyPID.cpp
  * @brief Implementation of PIDController class
  * @author Rami Kronbi
  * @date 2024
@@ -120,18 +120,17 @@ float PIDController::compute() {
 }
 
 float PIDController::computePID(float setpoint, float measurement, float dt) {
-    // Calculate error (based on proven tracker.h lines 54-56, 104-105).
     // error_ is what getError() reports and is always setpoint - measurement,
     // independent of control direction. controlError_ is the sign-corrected
     // value that actually drives the terms.
     error_ = setpoint - measurement;
     controlError_ = (direction_ == REVERSE) ? -error_ : error_;
 
-    // Calculate proportional term (based on tracker.h line 78)
+    // Calculate proportional term
     pTerm_ = kp_ * controlError_;
 
-    // Calculate and accumulate integral term with dt scaling (based on tracker.h line 75)
-    // Original: integral_error_ += current_error_;
+    // Calculate and accumulate integral term with dt scaling
+    // Original form accumulated the raw error;
     // Enhanced: integral += error * dt (for time-aware integration)
     //
     // Remember the pre-accumulation value so conditional integration can undo
@@ -150,8 +149,8 @@ float PIDController::computePID(float setpoint, float measurement, float dt) {
     
     iTerm_ = ki_ * integral_;
     
-    // Calculate derivative term with dt scaling (based on tracker.h line 72)
-    // Original: derivative_error_ = current_error_ - previous_error_;
+    // Calculate derivative term with dt scaling
+    // Original form differenced consecutive errors;
     // Enhanced: derivative = (error - previousError) / dt (for time-aware differentiation)
     //
     // On the very first update after begin()/reset() there is no previous error
@@ -177,11 +176,11 @@ float PIDController::computePID(float setpoint, float measurement, float dt) {
     
     dTerm_ = kd_ * derivativeToUse;
     
-    // Calculate total PID output (based on tracker.h lines 78-80)
-    // Original: output = (kp_ * current_error_) + (ki_ * integral_error_) + (kd_ * derivative_error_);
+    // Calculate total PID output
+    
     float rawOutput = pTerm_ + iTerm_ + dTerm_;
     
-    // Clamp output to limits (based on tracker.h lines 86-90)
+    // Clamp output to limits
     float clampedOutput = rawOutput;
     if (clampedOutput > outMax_) {
         clampedOutput = outMax_;
@@ -198,7 +197,7 @@ float PIDController::computePID(float setpoint, float measurement, float dt) {
     // was not working.
     iTerm_ = ki_ * integral_;
     
-    // Store for next iteration (based on tracker.h line 83)
+    // Store for next iteration
     previousError_ = controlError_;
     
     output_ = clampedOutput;
@@ -314,7 +313,7 @@ void PIDController::setDirection(ControlDirection direction) {
 }
 
 void PIDController::reset() {
-    // Reset all state variables (similar to tracker.h resetIntegral, lines 62-64)
+    // Reset all state variables
     error_ = 0.0f;
     controlError_ = 0.0f;
     previousError_ = 0.0f;
