@@ -21,10 +21,16 @@
 
 #include <easyPID.h>
 
-// Setpoint and process parameters
-const float SETPOINT = 100.0;           // Target value
-const float PROCESS_GAIN = 0.8;         // How responsive the process is
-const float PROCESS_TIME_CONSTANT = 0.1; // How fast process responds (0-1)
+// Setpoint and process parameters.
+//
+// The simulated plant settles at PROCESS_GAIN * 100 when the output is at its
+// maximum of 255, so PROCESS_GAIN * 100 is the highest value it can ever
+// reach. Keep SETPOINT below that or the loop can never close: the output
+// pins at 255 and the error never reaches zero, which demonstrates windup
+// rather than control.
+const float SETPOINT = 100.0;            // Target value
+const float PROCESS_GAIN = 1.5;          // Plant ceiling = 150, comfortably above setpoint
+const float PROCESS_TIME_CONSTANT = 0.1; // Time constant in seconds
 
 // PID tuning parameters (hand-tuned for this simulated process)
 const float KP = 2.0;   // Proportional gain
@@ -55,10 +61,9 @@ void setup() {
   Serial.println(F("=== easyPID Basic Example ==="));
   Serial.println(F("Simulating first-order process with PID control"));
   Serial.println();
-  Serial.println(F("Setpoint: "));
-  Serial.print(SETPOINT);
-  Serial.println();
-  Serial.println(F("PID Gains: Kp="));
+  Serial.print(F("Setpoint: "));
+  Serial.println(SETPOINT);
+  Serial.print(F("PID Gains: Kp="));
   Serial.print(KP);
   Serial.print(F(", Ki="));
   Serial.print(KI);
@@ -84,7 +89,8 @@ void loop() {
   if (now - lastTime >= SAMPLE_TIME_MS) {
     lastTime = now;
     
-    // Run PID controller
+    // Run PID controller. This overload measures dt from millis() itself, so
+    // it is safe to call at whatever cadence the sketch happens to run at.
     output = pid.update(SETPOINT, measurement);
     
     // Simulate first-order process response

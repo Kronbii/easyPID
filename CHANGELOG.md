@@ -5,6 +5,36 @@ All notable changes to the easyPID library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.17] - 2026-08-09
+
+### Fixed
+- **BasicPID and MultiLoopPID chased setpoints their simulated plants could not
+  reach.** Each plant settles at `PROCESS_GAIN * 100` at full output, so
+  BasicPID asked for 100 from a plant with a ceiling of 80, and MultiLoopPID's
+  second loop asked for 120 from a ceiling of 70. Both pinned the output at 255
+  forever. The sketches advertised as demonstrations of PID control were
+  demonstrating integral windup. Gains raised to 1.5, 1.2 and 1.6 respectively;
+  all three loops now settle exactly on setpoint. Verified by simulating the
+  sketches' own plant math.
+- Labels and values printed on separate lines throughout both sketches, from
+  `Serial.println(F("Setpoint: "))` followed by `Serial.print(value)`.
+- MultiLoopPID injected its simulated noise into the plant *state*, making it a
+  random walk the integrator had to chase, and drew it from `random(-10, 10)`,
+  which is asymmetric (-1.0 to +0.9, mean -0.05). Noise is now zero-mean and
+  applied to the value handed to the controller, which is what sensor noise
+  actually is.
+- MultiLoopPID's periodic P/I/D block interleaved non-CSV lines into the CSV
+  stream, corrupting it for Serial Plotter. It is now behind `VERBOSE_TERMS`,
+  off by default.
+- `randomSeed()` is now called, so the noise is not identical on every run.
+
+### Changed
+- MultiLoopPID uses the explicit-`dt` overload, both to demonstrate it and
+  because the loop is already gated to a fixed period, so the controller and
+  the plant simulation now agree exactly.
+
+---
+
 ## [1.0.16] - 2026-08-09
 
 ### Fixed
