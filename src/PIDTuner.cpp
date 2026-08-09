@@ -14,7 +14,8 @@
 static const float EASYPID_PI = 3.14159265359f;
 
 #define MIN_CYCLES_FOR_TUNING 3    // Minimum oscillation cycles needed
-#define MAX_WAIT_TIME_MS 60000     // Maximum wait time (60 seconds)
+#define MAX_WAIT_TIME_MS 60000     // Max time with no relay switching at all (60 s)
+#define MAX_TUNING_TIME_MS 900000  // Absolute backstop on one tuning run (15 min)
 
 PIDTuner::PIDTuner(PIDController& pid)
     : pid_(pid) {
@@ -38,6 +39,8 @@ PIDTuner::PIDTuner(PIDController& pid)
     cycleMin_ = 0.0f;
     haveCycleStart_ = false;
     cycleStartTime_ = 0;
+    tuningStartTime_ = 0;
+    lastTransitionTime_ = 0;
 
     cyclesDetected_ = 0;
     cyclesNeeded_ = 0;
@@ -66,6 +69,8 @@ bool PIDTuner::start(float setpoint, float relayAmplitude, float noiseBand) {
     cycleMin_ = setpoint_;
     haveCycleStart_ = false;
     cycleStartTime_ = millis();
+    tuningStartTime_ = cycleStartTime_;
+    lastTransitionTime_ = cycleStartTime_;
 
     cyclesDetected_ = 0;
     cyclesNeeded_ = MIN_CYCLES_FOR_TUNING + 2; // Extra cycles for stability
@@ -87,8 +92,16 @@ float PIDTuner::update(float measurement) {
     
     unsigned long now = millis();
     
-    // Timeout check: no complete relay cycle for too long
-    if (now - cycleStartTime_ > MAX_WAIT_TIME_MS) {
+    // Give up if the relay has not switched at all for a long time, which means
+    // the process is not responding. This is deliberately keyed to the last
+    // relay edge rather than the last completed cycle: a slow process can have
+    // a limit-cycle period longer than MAX_WAIT_TIME_MS and still be perfectly
+    // tunable, since it switches twice per period.
+    //
+    // The absolute deadline is a backstop for pathological cases where the
+    // relay keeps switching but a consistent limit cycle never emerges.
+    if ((now - lastTransitionTime_ > MAX_WAIT_TIME_MS) ||
+        (now - tuningStartTime_ > MAX_TUNING_TIME_MS)) {
         state_ = TUNER_IDLE;
         return 0.0f;
     }
@@ -126,11 +139,15 @@ void PIDTuner::trackLimitCycle(float measurement, unsigned long now) {
         cycleMin_ = measurement;
     }
 
-    // A rising edge (output low -> high) delimits one full period of the
-    // limit cycle: low peak, high peak, back to the next low crossing.
+    // Any relay edge is evidence the process is responding.
     bool risingEdge = (relayHigh_ && !relayHighPrev_);
+    if (relayHigh_ != relayHighPrev_) {
+        lastTransitionTime_ = now;
+    }
     relayHighPrev_ = relayHigh_;
 
+    // A rising edge (output low -> high) delimits one full period of the
+    // limit cycle: low peak, high peak, back to the next low crossing.
     if (!risingEdge) {
         return;
     }

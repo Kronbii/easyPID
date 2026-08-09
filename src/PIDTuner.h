@@ -174,6 +174,8 @@ private:
     float cycleMin_;
     bool haveCycleStart_;           ///< True once the first rising edge has been seen
     unsigned long cycleStartTime_;  ///< millis() at the last rising edge
+    unsigned long tuningStartTime_;     ///< millis() at start(), for the absolute deadline
+    unsigned long lastTransitionTime_;  ///< millis() at the last relay edge, either direction
 
     // Cycle detection
     int cyclesDetected_;

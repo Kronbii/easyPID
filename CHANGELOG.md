@@ -5,6 +5,22 @@ All notable changes to the easyPID library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-08-09
+
+### Fixed
+- The "process not responding" timeout is now keyed to the last relay edge
+  rather than the last completed cycle. A slow process switches the relay twice
+  per period, so the old reference silently capped the tunable limit-cycle
+  period at `MAX_WAIT_TIME_MS` (60 s) and aborted tuning on exactly the
+  lag-dominant thermal processes autotuning is most useful for. Verified: a
+  plant with `Pu = 69.6 s` now tunes successfully instead of timing out.
+
+### Added
+- An absolute 15-minute deadline per tuning run, as a backstop for pathological
+  cases where the relay keeps switching but no consistent limit cycle emerges.
+
+---
+
 ## [1.0.4] - 2026-08-09
 
 ### Fixed
