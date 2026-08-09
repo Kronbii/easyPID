@@ -5,6 +5,24 @@ All notable changes to the easyPID library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.16] - 2026-08-09
+
+### Fixed
+- `PIDTuner::start()` validates its parameters and returns `false` for a
+  non-positive `relayAmplitude` (which drives nothing, so no limit cycle can
+  form) or a negative `noiseBand` (which inverts the switching thresholds and
+  makes the relay chatter every sample). Both previously started a run that
+  could only fail.
+- A tuning run that times out now computes results from the cycles it did
+  collect instead of discarding them. `calculateResults()` already enforced
+  `MIN_CYCLES_FOR_TUNING`, but nothing ever called it on the timeout path, so
+  that guard was unreachable and a run that gathered 4 of 5 cycles threw all of
+  them away.
+- `getTunings()` and the internal `applyTuningRule()` are `const`; neither
+  mutates the tuner.
+
+---
+
 ## [1.0.15] - 2026-08-09
 
 ### Fixed

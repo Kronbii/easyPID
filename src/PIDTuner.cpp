@@ -52,7 +52,14 @@ bool PIDTuner::start(float setpoint, float relayAmplitude, float noiseBand) {
     if (state_ != TUNER_IDLE && state_ != TUNER_COMPLETE) {
         return false; // Already running
     }
-    
+
+    // A non-positive relay amplitude drives nothing, so no limit cycle can
+    // form and Ku would be zero or negative. A negative noise band inverts the
+    // switching thresholds and makes the relay chatter on every sample.
+    if (relayAmplitude <= 0.0f || noiseBand < 0.0f) {
+        return false;
+    }
+
     // Initialize tuning parameters
     setpoint_ = setpoint;
     relayAmplitude_ = relayAmplitude;
@@ -108,7 +115,13 @@ float PIDTuner::update(float measurement) {
     // relay keeps switching but a consistent limit cycle never emerges.
     if ((now - lastTransitionTime_ > MAX_WAIT_TIME_MS) ||
         (now - tuningStartTime_ > MAX_TUNING_TIME_MS)) {
-        state_ = TUNER_IDLE;
+        // Enough cycles may already have been collected to be usable, even
+        // though the run did not reach the full target. calculateResults()
+        // enforces MIN_CYCLES_FOR_TUNING, so this either salvages a valid
+        // result or leaves resultsValid_ false.
+        state_ = TUNER_ANALYZING;
+        calculateResults();
+        state_ = resultsValid_ ? TUNER_COMPLETE : TUNER_IDLE;
         return 0.0f;
     }
 
@@ -220,7 +233,7 @@ bool PIDTuner::isComplete() const {
     return state_ == TUNER_COMPLETE && resultsValid_;
 }
 
-bool PIDTuner::getTunings(float& kp, float& ki, float& kd, TuningRule rule) {
+bool PIDTuner::getTunings(float& kp, float& ki, float& kd, TuningRule rule) const {
     if (!resultsValid_ || ultimatePeriod_ <= 0.0f) {
         return false;
     }
@@ -229,7 +242,7 @@ bool PIDTuner::getTunings(float& kp, float& ki, float& kd, TuningRule rule) {
     return true;
 }
 
-void PIDTuner::applyTuningRule(float& kp, float& ki, float& kd, TuningRule rule) {
+void PIDTuner::applyTuningRule(float& kp, float& ki, float& kd, TuningRule rule) const {
     float Ku = ultimateGain_;
     float Pu = ultimatePeriod_;
     

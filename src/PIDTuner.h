@@ -94,7 +94,8 @@ public:
      * @param setpoint Target value for tuning
      * @param relayAmplitude Amplitude of relay output (higher = more aggressive)
      * @param noiseBand Noise band around setpoint (ignore small oscillations)
-     * @return true if started successfully
+     * @return true if started successfully; false if a run is already in
+     *         progress, or if relayAmplitude <= 0 or noiseBand < 0
      * @note Typical relayAmplitude: 10-20% of full output range
      * @note Typical noiseBand: 1-5% of setpoint value
      * @note Calls reset() on the attached PIDController. The relay run drives
@@ -124,7 +125,7 @@ public:
      * @param rule Tuning rule to apply (default: Ziegler-Nichols)
      * @return true if parameters available
      */
-    bool getTunings(float& kp, float& ki, float& kd, TuningRule rule = TUNING_ZIEGLER_NICHOLS);
+    bool getTunings(float& kp, float& ki, float& kd, TuningRule rule = TUNING_ZIEGLER_NICHOLS) const;
 
     /**
      * @brief Get ultimate gain (Ku) found during tuning
@@ -195,5 +196,5 @@ private:
     // Helpers
     void trackLimitCycle(float measurement, unsigned long now);
     void calculateResults();
-    void applyTuningRule(float& kp, float& ki, float& kd, TuningRule rule);
+    void applyTuningRule(float& kp, float& ki, float& kd, TuningRule rule) const;
 };
