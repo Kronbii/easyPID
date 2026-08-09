@@ -7,7 +7,10 @@
 
 #include "PIDTuner.h"
 
-#define PI 3.14159265359f
+// Arduino.h already defines PI (as a double). Redefining it here produced a
+// "PI redefined" warning on every build, so use a private float constant.
+static const float EASYPID_PI = 3.14159265359f;
+
 #define MIN_CYCLES_FOR_TUNING 3    // Minimum oscillation cycles needed
 #define MAX_WAIT_TIME_MS 60000     // Maximum wait time (60 seconds)
 
@@ -154,7 +157,7 @@ void PIDTuner::calculateResults() {
     // Ku = 4*d / (π*a)
     // where d = relay amplitude, a = oscillation amplitude
     if (avgAmplitude > 0.0f) {
-        ultimateGain_ = (4.0f * relayAmplitude_) / (PI * avgAmplitude);
+        ultimateGain_ = (4.0f * relayAmplitude_) / (EASYPID_PI * avgAmplitude);
         resultsValid_ = true;
     } else {
         resultsValid_ = false;
