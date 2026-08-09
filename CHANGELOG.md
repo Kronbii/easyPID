@@ -5,6 +5,37 @@ All notable changes to the easyPID library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.18] - 2026-08-09
+
+### Fixed
+- **AutoTunePID could never induce a limit cycle.** The tuner swings its output
+  symmetrically about zero, so half of every relay period was a negative drive
+  into a plant that only accepts 0-255. The measurement peaked at 22 against a
+  setpoint of 100, never crossed it, the relay never switched, and tuning
+  aborted on the timeout with no result. The sketch now centres the relay on an
+  `OUTPUT_BIAS` operating point, which is what a unipolar actuator requires.
+- The setpoint (100) was also above the plant's ceiling of 75, so even a
+  working relay could not have reached it. Now 37, with the time constant
+  raised to 1.0 s so the limit cycle spans ~18 samples instead of ~2. At the
+  old values the measured period was near the sampling limit and the resulting
+  gains were meaningless.
+- The sketch spun forever if tuning failed, because it only ever tested
+  `isComplete()` and never noticed the tuner had returned to `TUNER_IDLE`. It
+  now detects failure, explains the likely causes, and holds the output at zero.
+- The progress line printed on every loop iteration whose percentage happened
+  to be a multiple of ten, repeating the same value hundreds of times. It now
+  prints only on change.
+- Braced the `switch` case bodies that declare variables, and moved the tuning
+  rule names to flash via `F()`.
+
+### Verified
+Simulated end to end against the sketch's own plant model: tuning completes in
+9.2 s with `Ku = 8.95`, `Pu = 1.82 s` (18 samples per cycle), and all four rule
+sets then drive the loop to setpoint with the expected overshoot ordering --
+No-Overshoot 0.7%, Tyreus-Luyben 0%, Ziegler-Nichols 3.8%, Pessen 6.5%.
+
+---
+
 ## [1.0.17] - 2026-08-09
 
 ### Fixed
