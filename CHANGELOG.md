@@ -5,6 +5,17 @@ All notable changes to the easyPID library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.8] - 2026-08-09
+
+### Fixed
+- `ANTIWINDUP_BACKCALC` divided by `ki` without guarding against zero. A PD
+  controller (`ki = 0`) configured with back-calculation computed `1.0f / 0.0f`,
+  wrote inf into the integral, and every subsequent output was inf or NaN --
+  permanently, since inf never recovers. Back-calculation is now skipped when
+  there is no meaningful integral gain to correct.
+
+---
+
 ## [1.0.7] - 2026-08-09
 
 ### Fixed

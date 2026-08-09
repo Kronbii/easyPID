@@ -7,6 +7,10 @@
 
 #include "easyPID.h"
 
+// Below this magnitude the integral gain is treated as absent, so
+// back-calculation anti-windup has nothing to correct and 1/ki_ is not formed.
+static const float EASYPID_MIN_KI = 1e-6f;
+
 PIDController::PIDController(float kp, float ki, float kd, float outMin, float outMax)
     : kp_(kp), ki_(ki), kd_(kd), outMin_(outMin), outMax_(outMax) {
     
@@ -186,8 +190,13 @@ void PIDController::applyAntiWindup(float rawOutput, float clampedOutput, float 
             integral_ -= error_ * dt;
         }
     } else if (antiWindupMode_ == ANTIWINDUP_BACKCALC) {
-        // Back-calculation method
-        if (saturated) {
+        // Back-calculation feeds the saturation excess back through the
+        // integrator. With no meaningful integral gain there is nothing to
+        // correct, and 1/ki_ would be inf: that value lands in integral_ and
+        // never recovers, so every subsequent output is inf or NaN. A PD
+        // controller (ki = 0) configured with BACKCALC hit this immediately.
+        bool haveIntegralGain = (ki_ > EASYPID_MIN_KI) || (ki_ < -EASYPID_MIN_KI);
+        if (saturated && haveIntegralGain) {
             float backCalcGain = 1.0f / ki_; // Typical approach
             float error_back = (clampedOutput - rawOutput) * backCalcGain;
             integral_ += error_back * dt;
