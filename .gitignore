@@ -1,2 +1,4 @@
 .vscode/*
 .codex
+extras/test/test_easypid
+extras/test/test_examples

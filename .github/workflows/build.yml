@@ -1,0 +1,58 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  compile-examples:
+    name: Compile examples (${{ matrix.board.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+          - name: Uno
+            fqbn: arduino:avr:uno
+            platform: arduino:avr
+            url: ""
+          - name: Mega 2560
+            fqbn: arduino:avr:mega
+            platform: arduino:avr
+            url: ""
+          - name: ESP32
+            fqbn: esp32:esp32:esp32
+            platform: esp32:esp32
+            url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Compile all examples
+        uses: arduino/compile-sketches@v1
+        with:
+          fqbn: ${{ matrix.board.fqbn }}
+          platforms: |
+            - name: ${{ matrix.board.platform }}
+              source-url: ${{ matrix.board.url }}
+          libraries: |
+            - source-path: ./
+          sketch-paths: |
+            - examples
+          # Warnings are errors here: the library shipped a "PI redefined"
+          # warning on every build for an entire release because nothing
+          # checked. Keep it that way.
+          enable-warnings-report: true
+          verbose: false
+
+  host-tests:
+    name: Host tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build and run the host test suites
+        working-directory: extras/test
+        run: make test
