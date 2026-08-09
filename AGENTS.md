@@ -88,24 +88,78 @@ Two conventions worth knowing before you "fix" them:
 
 ## 4. Versioning and release
 
-The maintainer's policy, established in the 1.0.1 → 1.1.0 sweep:
+**This library is published.** It is registered in the Arduino Library Manager
+and appears in the IDE for every user. Confirm what the world currently sees
+with:
+
+```bash
+arduino-cli lib update-index && arduino-cli lib search easyPID
+```
+
+A released version is not a draft you can amend — it is what users install.
+
+### Policy
 
 1. **One commit per defect.** Each commit bumps the version in
    `library.properties` *and* adds its own `CHANGELOG.md` section. The history
    stays bisectable and each bump has exactly one reason.
 2. **PATCH** for bug fixes and documentation. **MINOR** for additive API.
    MAJOR for anything that breaks a sketch.
-3. **Tag only the final version of a sweep.** Arduino Library Manager indexes
-   every tag, so tagging each intermediate patch would show users a dozen
-   releases in one day. Intermediate versions live in history, unreleased.
-4. Tags are **bare semver, no `v` prefix** — the existing tag is `1.0.0`. A
+3. **Tag only the final version of a sweep.** Library Manager indexes every
+   tag, so tagging each intermediate patch would show users a dozen releases in
+   one day. Intermediate versions live in history, unreleased.
+4. Tags are **bare semver, no `v` prefix** — the first tag is `1.0.0`. A
    `v`-prefixed URL in `CHANGELOG.md` would 404.
-5. Only add a `CHANGELOG.md` link definition for versions that are actually
-   tagged.
+5. Only add a `CHANGELOG.md` link definition for versions actually tagged.
 
 Commit message: `fix(scope): what changed (X.Y.Z)`, body explaining what was
 wrong, how it manifested, and the evidence. Scopes in use: `pid`, `tuner`,
 `examples`, `docs`, `test`.
+
+### Publishing — the order matters
+
+> **Library Manager indexes git *tags*, not GitHub releases.** The moment a tag
+> matching `library.properties` lands on the remote, Arduino's crawler will pick
+> it up and ship it to every IDE user. **Never push a tag before the change is
+> merged and reviewed.** There is no unpublish.
+
+```
+1. branch            git checkout -b fix/<topic>
+2. commit            one per defect, each bumping the version + CHANGELOG
+3. verify            all three checks in §5 must pass
+4. push BRANCH ONLY  git push -u origin fix/<topic>        # never --tags
+5. open PR           gh pr create --base main
+6. draft release     gh release create <version> --draft --target main \
+                       --notes-file <notes>
+                     # a draft does NOT create the tag
+7. MERGE             maintainer merges the PR
+8. publish release   creates the tag on main -> this is the publish step
+9. Library Manager   picks up the new tag automatically, usually within an hour.
+                     No resubmission: the library is already registered
+10. confirm          arduino-cli lib update-index
+                     arduino-cli lib search easyPID     # new version listed?
+```
+
+Prefer a **fast-forward merge**, or re-tag afterwards. If the PR is merged with
+a merge commit and the tag was cut from the branch tip, the tag points at a
+commit that is not on `main`.
+
+`.github/workflows/arduino-lint.yml` runs with `library-manager: update`, which
+is the correct mode for an **already-registered** library. `submit` is only for
+first-time registration — do not switch it back.
+
+### Testing a change on hardware before publishing
+
+The library is not installed in the sketchbook by default. Symlink the working
+tree so the IDE compiles what you are editing:
+
+```bash
+ln -s "$PWD" "$(arduino-cli config get directories.user)/libraries/easyPID"
+```
+
+Everything in this repo is verified by simulation and by compiler. Flash the
+autotune example on a real board before publishing anything that touches the
+control math.
 
 ---
 
@@ -185,7 +239,45 @@ Things that already went wrong here, so they don't again:
 
 ---
 
-## 7. Sanity checks on a finished change
+## 7. References
+
+**This repository**
+
+| | |
+|---|---|
+| Repository | https://github.com/Kronbii/easyPID |
+| Library Manager entry | `arduino-cli lib search easyPID` (registered; `1.0.0` indexed as of the 1.1.0 sweep) |
+| Releases | https://github.com/Kronbii/easyPID/releases |
+| The 1.0.1 → 1.1.0 audit sweep | [PR #2](https://github.com/Kronbii/easyPID/pull/2) — 24 commits, one per defect; the model for how a sweep is structured |
+| Changelog | [CHANGELOG.md](CHANGELOG.md) — every entry states what was wrong and how it showed |
+| Tuning guide | [docs/tuning_guide.md](docs/tuning_guide.md) |
+| Host tests | [extras/test/README.md](extras/test/README.md) |
+
+**Arduino specifications and tooling**
+
+| | |
+|---|---|
+| Library specification (layout, `library.properties`, `keywords.txt`) | https://arduino.github.io/arduino-cli/latest/library-specification/ |
+| Library Manager submission & update rules | https://github.com/arduino/library-registry/blob/main/FAQ.md |
+| `arduino-lint` rule reference | https://arduino.github.io/arduino-lint/latest/rules/library/ |
+| `arduino-cli` commands | https://arduino.github.io/arduino-cli/latest/commands/arduino-cli/ |
+| `arduino/compile-sketches` action (used in `build.yml`) | https://github.com/arduino/compile-sketches |
+| `arduino/arduino-lint-action` | https://github.com/arduino/arduino-lint-action |
+| Valid `category` values | https://arduino.github.io/arduino-cli/latest/library-specification/#library-categories |
+
+**Control theory behind the autotuner**
+
+| | |
+|---|---|
+| Relay (limit-cycle) autotuning | Åström & Hägglund, *Automatic Tuning of PID Controllers* — the describing-function basis for `Ku = 4d / (π·a)` |
+| Hysteresis correction | With relay hysteresis `h`, the critical point moves off the real axis; projecting back gives `Ku = 4d / (π·√(a² − h²))`, which is what `calculateResults()` implements |
+| `a` is the **half** peak-to-peak swing | not the full span — getting this wrong understates `Ku` by 2x |
+| Ziegler-Nichols open-loop (FOPDT) | `Kp = 1.2·T/(K·L)`, `Ti = 2L`, `Td = 0.5L` |
+| Conditional integration (anti-windup) | Inhibit only accumulation driving *further* into saturation; inhibiting both directions freezes the integrator |
+
+---
+
+## 8. Sanity checks on a finished change
 
 - [ ] `make -C extras/test test` — both suites pass
 - [ ] `arduino-lint --compliance strict --library-manager update` — clean
@@ -195,3 +287,5 @@ Things that already went wrong here, so they don't again:
 - [ ] `keywords.txt` updated if the public API changed (single tabs)
 - [ ] Public signatures and enumerator values unchanged, or the bump reflects it
 - [ ] A test exists that fails without the fix
+- [ ] **No tag pushed** unless the change is merged and you intend to publish
+      it to every Library Manager user
