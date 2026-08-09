@@ -177,6 +177,9 @@ public:
     /**
      * @brief Set control direction
      * @param direction DIRECT or REVERSE
+     * @note Changing direction at runtime negates the carried integral and
+     *       derivative state so the switch is bumpless. Setting the direction
+     *       it already has is a no-op.
      */
     void setDirection(ControlDirection direction);
 

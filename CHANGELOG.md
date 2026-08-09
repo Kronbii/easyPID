@@ -5,6 +5,18 @@ All notable changes to the easyPID library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.15] - 2026-08-09
+
+### Fixed
+- `setDirection()` now negates the carried integral and derivative state when
+  the direction actually changes. Those values were accumulated under the
+  opposite sign convention, so after a switch the integrator fought the new
+  direction until it bled off, and the sign flip in `previousError_` produced
+  one large spurious derivative sample. Setting the direction it already has is
+  now a no-op rather than a state disturbance.
+
+---
+
 ## [1.0.14] - 2026-08-09
 
 ### Fixed

@@ -297,7 +297,20 @@ void PIDController::setSampleTime(unsigned long ms) {
 }
 
 void PIDController::setDirection(ControlDirection direction) {
+    if (direction == direction_) {
+        return;
+    }
+
     direction_ = direction;
+
+    // The carried state was accumulated under the opposite sign convention.
+    // Leaving it as-is makes the integrator fight the new direction until it
+    // has bled off, and produces one large spurious derivative sample from the
+    // sign flip in previousError_. Negating it makes the switch bumpless.
+    integral_ = -integral_;
+    previousError_ = -previousError_;
+    derivativeFiltered_ = -derivativeFiltered_;
+    controlError_ = -controlError_;
 }
 
 void PIDController::reset() {
